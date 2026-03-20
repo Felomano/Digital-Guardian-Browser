@@ -26,6 +26,7 @@ type AngelOverlayProps = {
   onReport: () => void;
   isAlertVisible: boolean;
   setAlertVisible: (v: boolean) => void;
+  bottomOffset?: number;
 };
 
 const RISK_CONFIG = {

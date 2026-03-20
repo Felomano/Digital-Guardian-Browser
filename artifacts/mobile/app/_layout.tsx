@@ -53,9 +53,11 @@ export default function RootLayout() {
               <Stack.Screen name="home" />
               <Stack.Screen
                 name="browser"
-                options={{
-                  animation: "slide_from_right",
-                }}
+                options={{ animation: "slide_from_right" }}
+              />
+              <Stack.Screen
+                name="community"
+                options={{ animation: "slide_from_right" }}
               />
             </Stack>
           </GestureHandlerRootView>
