@@ -11,8 +11,20 @@ import {
   Animated,
   Linking,
 } from "react-native";
-import { WebView } from "react-native-webview";
-import type { WebViewNavigation } from "react-native-webview/lib/WebViewTypes";
+
+// WebView only works on native (iOS/Android), not on web
+let WebView: any = null;
+let WebViewNavigationType: any = null;
+if (Platform.OS !== "web") {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const webviewModule = require("react-native-webview");
+  WebView = webviewModule.WebView;
+}
+type WebViewNavigation = {
+  url: string;
+  canGoBack: boolean;
+  canGoForward: boolean;
+};
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -336,6 +348,29 @@ export default function BrowserScreen() {
             <Text style={styles.goBackText}>Ir a la página de inicio</Text>
           </Pressable>
         </View>
+      ) : Platform.OS === "web" ? (
+        <View style={styles.webOnlyScreen}>
+          <View style={styles.webOnlyIconBg}>
+            <Feather name="smartphone" size={40} color={Colors.accent} />
+          </View>
+          <Text style={styles.webOnlyTitle}>Funciona en dispositivos móviles</Text>
+          <Text style={styles.webOnlyDesc}>
+            El navegador Ángel está optimizado para iOS y Android. Descarga la app para navegar con protección en tiempo real.
+          </Text>
+          <View style={styles.webOnlyUrlBox}>
+            <Feather name="globe" size={14} color={Colors.textSecondary} />
+            <Text style={styles.webOnlyUrl} numberOfLines={1}>
+              {currentUrl.replace(/^https?:\/\//, "").split("/")[0]}
+            </Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.openExternalBtn, pressed && { opacity: 0.8 }]}
+            onPress={handleOpenExternal}
+          >
+            <Feather name="external-link" size={18} color={Colors.white} />
+            <Text style={styles.openExternalText}>Abrir en navegador externo</Text>
+          </Pressable>
+        </View>
       ) : (
         <WebView
           ref={webViewRef}
@@ -347,15 +382,14 @@ export default function BrowserScreen() {
             setWebViewError(null);
           }}
           onLoadEnd={() => setIsLoading(false)}
-          onError={(syntheticEvent) => {
+          onError={(syntheticEvent: any) => {
             const { nativeEvent } = syntheticEvent;
-            // Only show error for non-cancelled loads
             if (nativeEvent.code !== -999) {
               setWebViewError(nativeEvent.description || "Error loading page");
               setIsLoading(false);
             }
           }}
-          onHttpError={(syntheticEvent) => {
+          onHttpError={(syntheticEvent: any) => {
             const { nativeEvent } = syntheticEvent;
             if (nativeEvent.statusCode === 403 || nativeEvent.statusCode === 401) {
               setWebViewError("This site has restricted access.");
@@ -598,5 +632,54 @@ const styles = StyleSheet.create({
   },
   bottomBtnDisabled: {
     opacity: 0.4,
+  },
+  webOnlyScreen: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    gap: 16,
+  },
+  webOnlyIconBg: {
+    width: 90,
+    height: 90,
+    borderRadius: 26,
+    backgroundColor: "rgba(123,47,190,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    marginBottom: 8,
+  },
+  webOnlyTitle: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    color: Colors.white,
+    textAlign: "center",
+  },
+  webOnlyDesc: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  webOnlyUrlBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: Colors.cardBg,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    alignSelf: "stretch",
+  },
+  webOnlyUrl: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
+    flex: 1,
   },
 });
