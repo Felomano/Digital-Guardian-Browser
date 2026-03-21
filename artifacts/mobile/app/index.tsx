@@ -15,7 +15,7 @@ import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
 
 import Colors from "@/constants/colors";
-import { AngelIcon } from "@/components/AngelIcon";
+import { AngelLogo } from "@/components/AngelLogo";
 
 const { width, height } = Dimensions.get("window");
 
@@ -89,12 +89,7 @@ export default function LoginScreen() {
         >
           <Animated.View style={[styles.glowRing, { opacity: glowAnim }]} />
           <View style={styles.iconContainer}>
-            <AngelIcon
-              size={100}
-              primaryColor="#FFFFFF"
-              accentColor="#C8A8FF"
-              glowColor={Colors.accent}
-            />
+            <AngelLogo size={100} />
           </View>
         </Animated.View>
 

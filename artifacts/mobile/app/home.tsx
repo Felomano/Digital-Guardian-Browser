@@ -16,7 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import Colors from "@/constants/colors";
-import { AngelIcon } from "@/components/AngelIcon";
+import { AngelLogo } from "@/components/AngelLogo";
 
 const { width } = Dimensions.get("window");
 
@@ -133,12 +133,7 @@ export default function HomeScreen() {
               ]}
             />
             <View style={styles.angelContainer}>
-              <AngelIcon
-                size={120}
-                primaryColor="#FFFFFF"
-                accentColor="#C8A8FF"
-                glowColor={Colors.accent}
-              />
+              <AngelLogo size={120} />
             </View>
             <Text style={styles.heroTitle}>Navega protegido</Text>
             <Text style={styles.heroSubtitle}>

@@ -14,7 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
-import { AngelIcon } from "@/components/AngelIcon";
+import { AngelLogo } from "@/components/AngelLogo";
 
 type RiskLevel = "safe" | "warning" | "danger" | "loading" | "unknown";
 
@@ -27,6 +27,8 @@ type AngelOverlayProps = {
   isAlertVisible: boolean;
   setAlertVisible: (v: boolean) => void;
   bottomOffset?: number;
+  aiExplanation?: string | null;
+  aiReasons?: string[];
 };
 
 const RISK_CONFIG = {
@@ -70,6 +72,8 @@ export function AngelOverlay({
   onReport,
   isAlertVisible,
   setAlertVisible,
+  aiExplanation,
+  aiReasons = [],
 }: AngelOverlayProps) {
   const insets = useSafeAreaInsets();
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -223,12 +227,7 @@ export function AngelOverlay({
             },
           ]}
         >
-          <AngelIcon
-            size={32}
-            primaryColor={iconColor}
-            accentColor={config.haloColor}
-            glowColor={config.haloColor}
-          />
+          <AngelLogo size={32} />
           {riskLevel !== "safe" && riskLevel !== "unknown" && (
             <View
               style={[
@@ -283,12 +282,7 @@ export function AngelOverlay({
                     { backgroundColor: config.haloColor + "22" },
                   ]}
                 >
-                  <AngelIcon
-                    size={48}
-                    primaryColor="#FFFFFF"
-                    accentColor={config.haloColor}
-                    glowColor={config.haloColor}
-                  />
+                  <AngelLogo size={48} />
                 </View>
                 <View style={styles.alertHeaderText}>
                   <View style={styles.riskLabelRow}>
@@ -320,10 +314,25 @@ export function AngelOverlay({
                 </Text>
               </View>
 
-              {/* Description */}
-              <Text style={styles.alertDescription}>
-                {config.description}
-              </Text>
+              {/* AI Explanation */}
+              {(aiExplanation || config.description) && (
+                <View style={styles.explanationBox}>
+                  <Text style={styles.alertDescription}>
+                    {aiExplanation || config.description}
+                  </Text>
+                  {aiReasons.length > 0 && (
+                    <View style={styles.reasonsList}>
+                      <Text style={styles.reasonsTitle}>Motivos detectados:</Text>
+                      {aiReasons.slice(0, 3).map((reason, i) => (
+                        <View key={i} style={styles.reasonItem}>
+                          <Text style={styles.reasonBullet}>•</Text>
+                          <Text style={styles.reasonText}>{reason}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
 
               {/* Actions */}
               <View style={styles.actionButtons}>

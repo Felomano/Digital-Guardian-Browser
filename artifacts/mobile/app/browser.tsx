@@ -32,9 +32,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 import { AngelOverlay } from "@/components/AngelOverlay";
 import { ToastMessage } from "@/components/ToastMessage";
+import { SECURITY_ENDPOINT, REPORT_ENDPOINT } from "@/constants/api";
 
-const SECURITY_API = "https://angelsecurity.base44.app/api/check-security";
-const REPORT_API = "https://angelsecurity.base44.app/api/report-scam";
+const SECURITY_API = SECURITY_ENDPOINT;
+const REPORT_API = REPORT_ENDPOINT;
 const DEFAULT_URL = "https://www.google.com";
 const SEARCH_ENGINE = "https://www.google.com/search?q=";
 
@@ -137,6 +138,8 @@ export default function BrowserScreen() {
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
   const [isInputFocused, setInputFocused] = useState(false);
+  const [aiExplanation, setAiExplanation] = useState<string | null>(null);
+  const [aiReasons, setAiReasons] = useState<string[]>([]);
 
   const webViewRef = useRef<any>(null);
   const alertShownFor = useRef<string>("");
@@ -177,6 +180,10 @@ export default function BrowserScreen() {
       if (!response.ok) throw new Error("API error");
       const data = await response.json();
       const apiRisk: RiskLevel = data.risk_level || "unknown";
+
+      // Capture AI explanation and reasons
+      if (data.explanation) setAiExplanation(data.explanation);
+      if (data.reasons?.length) setAiReasons(data.reasons);
 
       // Use the most severe of local + remote
       const severity: Record<RiskLevel, number> = {
@@ -226,6 +233,8 @@ export default function BrowserScreen() {
     Keyboard.dismiss();
     const normalized = normalizeUrl(inputUrl);
     alertShownFor.current = "";
+    setAiExplanation(null);
+    setAiReasons([]);
     setCurrentUrl(normalized);
     setWebViewUrl(normalized);
     setInputUrl(normalized);
@@ -536,6 +545,8 @@ export default function BrowserScreen() {
         onReport={handleReport}
         isAlertVisible={isAlertVisible}
         setAlertVisible={setAlertVisible}
+        aiExplanation={aiExplanation}
+        aiReasons={aiReasons}
       />
 
       {/* ── Toast ───────────────────────────────────────────────────────── */}

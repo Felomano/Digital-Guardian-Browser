@@ -16,7 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import Colors from "@/constants/colors";
-import { AngelIcon } from "@/components/AngelIcon";
+import { AngelLogo } from "@/components/AngelLogo";
 
 type Report = {
   url: string;
@@ -157,7 +157,7 @@ export default function CommunityScreen() {
           <Text style={styles.subtitle}>Sitios reportados por usuarios</Text>
         </View>
         <View style={styles.angelSmall}>
-          <AngelIcon size={32} primaryColor="#FFFFFF" accentColor="#C8A8FF" glowColor={Colors.accent} />
+          <AngelLogo size={32} />
         </View>
       </View>
 
