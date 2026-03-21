@@ -1,0 +1,172 @@
+Prompt Replit – Ángel Browser con Backend Propio
+Actúa como Full Stack Senior Developer (React + Node.js + UX Security Apps).
+Tu objetivo es mejorar y completar la webapp de Ángel (Angel Browser) creando una arquitectura frontend + backend propio, lista para un MVP funcional y escalable.
+🧠 CONTEXTO DEL PRODUCTO
+Ángel es un navegador seguro que:
+analiza URLs en tiempo real
+detecta phishing y sitios peligrosos
+muestra un indicador tipo semáforo
+permite reportar estafas
+tiene sistema comunitario por país
+🧱 1. ARQUITECTURA GENERAL
+Crear:
+Backend (Node.js + Express)
+Estructura:
+Plain text
+/backend
+  /routes
+  /controllers
+  /models
+  /services
+  server.js
+Frontend (React)
+Ya existente → mejorar e integrar con backend
+🔐 2. AUTENTICACIÓN (LOGIN GOOGLE)
+Implementar:
+Google OAuth (Firebase Auth o Passport.js)
+Guardar usuario en DB:
+JSON
+{
+  "id": "uuid",
+  "name": "string",
+  "email": "string",
+  "avatar": "string",
+  "country": "string",
+  "phone": "string",
+  "visibility": "standard | zero_annoyance",
+  "createdAt": "date"
+}
+🧠 3. API DE SEGURIDAD (CORE)
+Crear endpoint:
+Plain text
+GET /api/check-security?url=
+Lógica del análisis (3 capas)
+1. Heurística básica
+Detectar:
+typosquatting (amaz0n, paypaI)
+palabras clave:
+login
+verify
+update
+TLD sospechosos (.xyz, .info)
+2. Reputación
+Buscar en DB:
+reportes previos
+frecuencia de denuncias
+3. IA (simulada para MVP)
+Generar respuesta:
+JSON
+{
+  "risk_level": "safe | warning | danger",
+  "explanation": "Este dominio imita Amazon usando caracteres similares",
+  "confidence": 0.87
+}
+🚩 4. REPORTES DE USUARIO
+Endpoint:
+Plain text
+POST /api/report
+Body:
+JSON
+{
+  "url": "string",
+  "userId": "string",
+  "risk_level": "warning | danger",
+  "country": "string"
+}
+Guardar en:
+JSON
+Report {
+  url,
+  risk_level,
+  userId,
+  country,
+  createdAt
+}
+🌍 5. COMUNIDAD
+Endpoint:
+Plain text
+GET /api/reports?country=ES
+Devuelve:
+lista de reportes filtrados por país
+Ranking héroes
+Endpoint:
+Plain text
+GET /api/heroes
+Devuelve:
+usuarios con más reportes
+JSON
+[
+  {
+    "name": "Juan",
+    "reports": 34
+  }
+]
+👤 6. PERFIL DE USUARIO
+Endpoint:
+Plain text
+PUT /api/user/profile
+Campos:
+country
+phone
+visibility
+🎨 7. FRONTEND – MEJORAS
+Navegador
+barra URL
+WebView / iframe
+interceptar navegación
+Overlay Ángel
+Estados:
+🟢 invisible / opacidad baja
+🟡 visible suave
+🔴 visible + alerta
+Alerta con IA
+Mostrar:
+Plain text
+⚠️ Posible estafa detectada
+
+Motivo:
+- dominio sospechoso
+- imita marca conocida
+🚩 8. BOTÓN REPORTAR
+Visible en:
+warning
+danger
+Acción:
+llamar POST /api/report
+👥 9. COMUNIDAD UI
+Mostrar:
+feed por país
+lista de reportes
+ranking de usuarios
+🎯 10. UX
+Estilo:
+minimalista
+profesional
+confiable
+Colores:
+verde → seguro
+amarillo → advertencia
+rojo → peligro
+violeta → branding
+⚠️ 11. ERRORES Y FALLBACK
+Si la web falla:
+Mostrar:
+Plain text
+Este sitio no permite carga interna
+Botón:
+👉 Abrir en navegador externo
+🚀 12. OBJETIVO FINAL
+Construir un MVP funcional con:
+✔ backend propio
+✔ login Google
+✔ análisis de URLs
+✔ explicación IA
+✔ reportes
+✔ comunidad por país
+✔ ranking usuarios
+✔ navegador funcional
+💡 BONUS (IMPORTANTE)
+usar MongoDB o PostgreSQL
+implementar caching para análisis
+añadir timestamps en todo
+manejo de errores robusto
