@@ -24,7 +24,7 @@ type WebViewNavigation = {
 };
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -33,10 +33,10 @@ import Colors from "@/constants/colors";
 import { AngelOverlay } from "@/components/AngelOverlay";
 import { ToastMessage } from "@/components/ToastMessage";
 import { ReportModal } from "@/components/ReportModal";
-import { SECURITY_ENDPOINT, REPORT_ENDPOINT } from "@/constants/api";
+import { SECURITY_ENDPOINT } from "@/constants/api";
+import { loadSettings } from "@/constants/settings";
 
 const SECURITY_API = SECURITY_ENDPOINT;
-const REPORT_API = REPORT_ENDPOINT;
 const DEFAULT_URL = "https://www.google.com";
 const SEARCH_ENGINE = "https://www.google.com/search?q=";
 
@@ -211,7 +211,8 @@ export default function BrowserScreen() {
   const [aiExplanation, setAiExplanation] = useState<string | null>(null);
   const [aiReasons, setAiReasons] = useState<string[]>([]);
   const [isReportModalOpen, setReportModalOpen] = useState(false);
-  const [brandCloneAlert, setBrandCloneAlert] = useState<string | null>(null); // brand name or null
+  const [brandCloneAlert, setBrandCloneAlert] = useState<string | null>(null);
+  const [hideHaloOnGreen, setHideHaloOnGreen] = useState(false);
 
   const webViewRef = useRef<any>(null);
   const alertShownFor = useRef<string>("");
@@ -220,6 +221,13 @@ export default function BrowserScreen() {
   useEffect(() => {
     checkSecurity(initialUrl);
   }, []);
+
+  // Reload user settings when screen comes into focus (e.g., after visiting profile)
+  useFocusEffect(
+    useCallback(() => {
+      loadSettings().then((s) => setHideHaloOnGreen(s.hideHaloOnGreen));
+    }, [])
+  );
 
   // ── Security check: local first, then API ────────────────────────────────
   const checkSecurity = useCallback(async (url: string) => {
@@ -607,52 +615,55 @@ export default function BrowserScreen() {
         />
       )}
 
-      {/* ── Bottom bar ──────────────────────────────────────────────────── */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 4 }]}>
+      {/* ── Bottom navigation bar ───────────────────────────────────────── */}
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+        {/* Atrás */}
         <Pressable
-          style={({ pressed }) => [styles.bottomBtn, pressed && styles.bottomBtnPressed]}
+          style={({ pressed }) => [styles.navBtn, pressed && styles.navBtnPressed, !canGoBack && styles.navBtnDisabled]}
           onPress={() => webViewRef.current?.goBack()}
           disabled={!canGoBack}
         >
-          <Feather name="chevron-left" size={26} color={canGoBack ? Colors.white : Colors.textMuted} />
+          <Feather name="chevron-left" size={22} color={canGoBack ? Colors.white : Colors.textMuted} />
+          <Text style={[styles.navLabel, !canGoBack && styles.navLabelDisabled]}>Atrás</Text>
         </Pressable>
 
+        {/* Adelante */}
         <Pressable
-          style={({ pressed }) => [styles.bottomBtn, pressed && styles.bottomBtnPressed]}
+          style={({ pressed }) => [styles.navBtn, pressed && styles.navBtnPressed, !canGoForward && styles.navBtnDisabled]}
           onPress={() => webViewRef.current?.goForward()}
           disabled={!canGoForward}
         >
-          <Feather name="chevron-right" size={26} color={canGoForward ? Colors.white : Colors.textMuted} />
+          <Feather name="chevron-right" size={22} color={canGoForward ? Colors.white : Colors.textMuted} />
+          <Text style={[styles.navLabel, !canGoForward && styles.navLabelDisabled]}>Adelante</Text>
         </Pressable>
 
+        {/* Reportar */}
         <Pressable
-          style={({ pressed }) => [styles.bottomBtn, pressed && styles.bottomBtnPressed]}
-          onPress={() => webViewRef.current?.reload()}
+          style={({ pressed }) => [styles.navBtn, styles.navBtnReport, pressed && styles.navBtnPressed]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setReportModalOpen(true); }}
         >
-          <Feather name="rotate-cw" size={20} color={Colors.white} />
+          <View style={styles.reportIconBg}>
+            <Feather name="flag" size={18} color={Colors.danger} />
+          </View>
+          <Text style={[styles.navLabel, { color: Colors.danger }]}>Reportar</Text>
         </Pressable>
 
-        {/* Community reports button */}
+        {/* Comunidad */}
         <Pressable
-          style={({ pressed }) => [styles.bottomBtn, pressed && styles.bottomBtnPressed]}
-          onPress={() => router.push("/community")}
-        >
-          <Feather name="users" size={20} color={Colors.white} />
-        </Pressable>
-
-        {/* Heroes ranking button */}
-        <Pressable
-          style={({ pressed }) => [styles.bottomBtn, pressed && styles.bottomBtnPressed]}
+          style={({ pressed }) => [styles.navBtn, pressed && styles.navBtnPressed]}
           onPress={() => router.push("/heroes")}
         >
-          <Feather name="award" size={20} color={Colors.white} />
+          <Feather name="users" size={20} color={Colors.white} />
+          <Text style={styles.navLabel}>Comunidad</Text>
         </Pressable>
 
+        {/* Perfil */}
         <Pressable
-          style={({ pressed }) => [styles.bottomBtn, pressed && styles.bottomBtnPressed]}
-          onPress={() => router.back()}
+          style={({ pressed }) => [styles.navBtn, pressed && styles.navBtnPressed]}
+          onPress={() => router.push("/profile")}
         >
-          <Feather name="home" size={20} color={Colors.white} />
+          <Feather name="user" size={20} color={Colors.white} />
+          <Text style={styles.navLabel}>Perfil</Text>
         </Pressable>
       </View>
 
@@ -667,6 +678,7 @@ export default function BrowserScreen() {
         setAlertVisible={setAlertVisible}
         aiExplanation={aiExplanation}
         aiReasons={aiReasons}
+        hideWhenSafe={hideHaloOnGreen}
       />
 
       {/* ── Report modal ────────────────────────────────────────────────── */}
@@ -816,24 +828,51 @@ const styles = StyleSheet.create({
     fontSize: 14, fontFamily: "Inter_500Medium", color: Colors.textSecondary,
   },
 
-  // Bottom bar
+  // Bottom navigation bar
   bottomBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    paddingHorizontal: 4,
-    paddingTop: 10,
+    paddingHorizontal: 6,
+    paddingTop: 8,
     backgroundColor: Colors.primaryLight,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.12)",
+    borderTopColor: "rgba(255,255,255,0.14)",
+    minHeight: 62,
   },
-  bottomBtn: {
-    width: 52, height: 44,
-    alignItems: "center", justifyContent: "center",
+  navBtn: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    gap: 3,
     borderRadius: 10,
+    minHeight: 52,
   },
-  bottomBtnPressed: {
+  navBtnPressed: {
     backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  navBtnDisabled: {
+    opacity: 0.35,
+  },
+  navBtnReport: {
+    // no extra styles needed
+  },
+  reportIconBg: {
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: Colors.danger + "22",
+    borderWidth: 1, borderColor: Colors.danger + "44",
+    alignItems: "center", justifyContent: "center",
+  },
+  navLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_500Medium",
+    color: Colors.white,
+    textAlign: "center",
+  },
+  navLabelDisabled: {
+    color: Colors.textMuted,
   },
 
   // Web-only fallback

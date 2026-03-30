@@ -65,6 +65,10 @@ export default function RootLayout() {
                 name="heroes"
                 options={{ animation: "slide_from_right" }}
               />
+              <Stack.Screen
+                name="profile"
+                options={{ animation: "slide_from_right" }}
+              />
             </Stack>
           </GestureHandlerRootView>
         </QueryClientProvider>

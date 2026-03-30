@@ -29,6 +29,7 @@ type AngelOverlayProps = {
   bottomOffset?: number;
   aiExplanation?: string | null;
   aiReasons?: string[];
+  hideWhenSafe?: boolean;
 };
 
 const RISK_CONFIG = {
@@ -74,6 +75,7 @@ export function AngelOverlay({
   setAlertVisible,
   aiExplanation,
   aiReasons = [],
+  hideWhenSafe = false,
 }: AngelOverlayProps) {
   const insets = useSafeAreaInsets();
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -199,11 +201,15 @@ export function AngelOverlay({
           ? "#FFFFFF"
           : "#FFFFFF";
 
+  // Hide floating button when safe and user enabled the option
+  const shouldHideButton = hideWhenSafe && (riskLevel === "safe" || riskLevel === "unknown");
+
   return (
     <>
       {/* Floating overlay button */}
+      {!shouldHideButton && (
       <Pressable
-        style={[styles.floatingBtn, { bottom: insets.bottom + 20 }]}
+        style={[styles.floatingBtn, { bottom: insets.bottom + 85 }]}
         onPress={handleOverlayPress}
       >
         <Animated.View
@@ -238,6 +244,7 @@ export function AngelOverlay({
           )}
         </Animated.View>
       </Pressable>
+      )}
 
       {/* Alert modal */}
       <Modal
