@@ -32,6 +32,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 import { AngelOverlay } from "@/components/AngelOverlay";
 import { ToastMessage } from "@/components/ToastMessage";
+import { ReportModal } from "@/components/ReportModal";
 import { SECURITY_ENDPOINT, REPORT_ENDPOINT } from "@/constants/api";
 
 const SECURITY_API = SECURITY_ENDPOINT;
@@ -67,6 +68,72 @@ const WARNING_PATTERNS = [
 
 const WARNING_TLDS = [".tk", ".ml", ".ga", ".cf", ".gq", ".xyz", ".top", ".click", ".download"];
 
+// ─── Known brands + their official domains ──────────────────────────────────
+const KNOWN_BRANDS: Record<string, string[]> = {
+  "lidl":         ["lidl.es", "lidl.com", "lidl.fr", "lidl.de", "lidl.co.uk"],
+  "conforama":    ["conforama.es", "conforama.com", "conforama.fr"],
+  "amazon":       ["amazon.es", "amazon.com", "amazon.co.uk", "amazon.fr", "amazon.de"],
+  "leroy merlin": ["leroymerlin.es", "leroymerlin.fr", "leroymerlin.com"],
+  "mediamarkt":   ["mediamarkt.es", "mediamarkt.com", "mediamarkt.de"],
+};
+
+// ─── Shannon entropy to detect random/generated hostnames ───────────────────
+function shannonEntropy(str: string): number {
+  const freq: Record<string, number> = {};
+  for (const ch of str) freq[ch] = (freq[ch] ?? 0) + 1;
+  const len = str.length;
+  return -Object.values(freq).reduce((acc, n) => {
+    const p = n / len;
+    return acc + p * Math.log2(p);
+  }, 0);
+}
+
+function isHighEntropyDomain(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    const sld = hostname.split(".").slice(-2, -1)[0] ?? "";
+    if (sld.length < 6) return false;
+    const entropy = shannonEntropy(sld);
+    // High entropy (>3.5) on unusual TLD = likely generated domain
+    const dangerousTld = WARNING_TLDS.some((t) => hostname.endsWith(t));
+    return entropy > 3.5 && dangerousTld;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Brand-clone detection injected into WebView ────────────────────────────
+const BRAND_CLONE_JS = `
+(function() {
+  var BRANDS = ${JSON.stringify(Object.entries(KNOWN_BRANDS).map(([brand, domains]) => ({ brand, domains })))};
+  var currentHost = window.location.hostname.toLowerCase();
+  var bodyText = (document.body && document.body.innerText) ? document.body.innerText.toLowerCase() : '';
+  var title = document.title ? document.title.toLowerCase() : '';
+  var combined = bodyText + ' ' + title;
+  for (var i = 0; i < BRANDS.length; i++) {
+    var b = BRANDS[i];
+    if (combined.indexOf(b.brand) !== -1) {
+      var isOfficial = false;
+      for (var j = 0; j < b.domains.length; j++) {
+        if (currentHost === b.domains[j] || currentHost.endsWith('.' + b.domains[j])) {
+          isOfficial = true;
+          break;
+        }
+      }
+      if (!isOfficial) {
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'BRAND_CLONE',
+          brand: b.brand,
+          url: window.location.href,
+        }));
+        break;
+      }
+    }
+  }
+  true;
+})();
+`;
+
 function localRiskCheck(url: string): RiskLevel {
   try {
     const lower = url.toLowerCase();
@@ -79,6 +146,9 @@ function localRiskCheck(url: string): RiskLevel {
     for (const d of DANGER_DOMAINS) {
       if (hostname.includes(d)) return "danger";
     }
+
+    // High-entropy random-looking domain (e.g. lqjkarav.shop)
+    if (isHighEntropyDomain(url)) return "danger";
 
     // Dangerous keywords in URL
     for (const kw of DANGER_KEYWORDS) {
@@ -140,6 +210,8 @@ export default function BrowserScreen() {
   const [isInputFocused, setInputFocused] = useState(false);
   const [aiExplanation, setAiExplanation] = useState<string | null>(null);
   const [aiReasons, setAiReasons] = useState<string[]>([]);
+  const [isReportModalOpen, setReportModalOpen] = useState(false);
+  const [brandCloneAlert, setBrandCloneAlert] = useState<string | null>(null); // brand name or null
 
   const webViewRef = useRef<any>(null);
   const alertShownFor = useRef<string>("");
@@ -262,35 +334,50 @@ export default function BrowserScreen() {
   };
 
   const handleReport = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    const reportEntry = {
-      url: currentUrl,
-      risk: riskLevel,
-      timestamp: new Date().toISOString(),
-      source: "angel-browser",
-    };
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setAlertVisible(false);
+    setTimeout(() => setReportModalOpen(true), 300);
+  };
 
-    // Save locally for community screen
+  // ── Handle WebView messages (brand-clone detection) ───────────────────────
+  const handleWebViewMessage = useCallback((event: any) => {
+    try {
+      const msg = JSON.parse(event.nativeEvent.data);
+      if (msg.type === "BRAND_CLONE") {
+        const brandLabel = msg.brand.charAt(0).toUpperCase() + msg.brand.slice(1);
+        setBrandCloneAlert(brandLabel);
+        setRiskLevel("danger");
+        setAiExplanation(`¡Este sitio suplanta a ${brandLabel}! La URL (${new URL(currentUrl).hostname}) no es el dominio oficial de ${brandLabel}.`);
+        setAiReasons([
+          `Contenido de marca "${brandLabel}" en dominio no oficial`,
+          `URL con alta entropía o TLD sospechoso`,
+          `Posible clonación de sitio legítimo`,
+        ]);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setTimeout(() => setAlertVisible(true), 400);
+      }
+    } catch {}
+  }, [currentUrl]);
+
+  const handleReportSuccess = async () => {
+    setReportModalOpen(false);
+    // Also cache locally for community screen
     try {
       const stored = await AsyncStorage.getItem("community_reports");
       const existing = stored ? JSON.parse(stored) : [];
+      const reportEntry = {
+        url: currentUrl,
+        risk: riskLevel,
+        timestamp: new Date().toISOString(),
+        source: "angel-browser",
+      };
       const filtered = existing.filter((r: any) => r.url !== currentUrl);
       await AsyncStorage.setItem(
         "community_reports",
         JSON.stringify([reportEntry, ...filtered].slice(0, 100))
       );
-    } catch (e) {}
-
-    // Also send to remote API
-    try {
-      await fetch(REPORT_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(reportEntry),
-      });
-    } catch (e) {}
-
-    showToast("Gracias por ayudar a proteger a otros usuarios", "success");
+    } catch {}
+    showToast("¡Reporte enviado! Gracias por proteger a la comunidad", "success");
   };
 
   const showToast = (message: string, type: "success" | "info" | "warning" = "info") => {
@@ -408,6 +495,25 @@ export default function BrowserScreen() {
         </Pressable>
       )}
 
+      {/* ── Brand Clone Alert Banner ────────────────────────────────────── */}
+      {brandCloneAlert && (
+        <Pressable
+          style={styles.brandCloneBanner}
+          onPress={() => setAlertVisible(true)}
+        >
+          <Feather name="alert-octagon" size={16} color="#fff" />
+          <Text style={styles.brandCloneBannerText}>
+            ¡ALERTA! Este sitio suplanta a {brandCloneAlert}
+          </Text>
+          <Pressable
+            style={styles.brandCloneClose}
+            onPress={() => setBrandCloneAlert(null)}
+          >
+            <Feather name="x" size={14} color="rgba(255,255,255,0.7)" />
+          </Pressable>
+        </Pressable>
+      )}
+
       {/* ── WebView / Fallback ─────────────────────────────────────────── */}
       {webViewError ? (
         <View style={styles.errorScreen}>
@@ -464,7 +570,13 @@ export default function BrowserScreen() {
           source={{ uri: webViewUrl }}
           style={styles.webView}
           onNavigationStateChange={handleNavigationStateChange}
-          onLoadStart={() => { setIsLoading(true); setWebViewError(null); }}
+          injectedJavaScript={BRAND_CLONE_JS}
+          onMessage={handleWebViewMessage}
+          onLoadStart={() => {
+            setIsLoading(true);
+            setWebViewError(null);
+            setBrandCloneAlert(null);
+          }}
           onLoadEnd={() => setIsLoading(false)}
           onError={(syntheticEvent: any) => {
             const { nativeEvent } = syntheticEvent;
@@ -528,6 +640,14 @@ export default function BrowserScreen() {
           <Feather name="users" size={20} color={Colors.white} />
         </Pressable>
 
+        {/* Heroes ranking button */}
+        <Pressable
+          style={({ pressed }) => [styles.bottomBtn, pressed && styles.bottomBtnPressed]}
+          onPress={() => router.push("/heroes")}
+        >
+          <Feather name="award" size={20} color={Colors.white} />
+        </Pressable>
+
         <Pressable
           style={({ pressed }) => [styles.bottomBtn, pressed && styles.bottomBtnPressed]}
           onPress={() => router.back()}
@@ -547,6 +667,14 @@ export default function BrowserScreen() {
         setAlertVisible={setAlertVisible}
         aiExplanation={aiExplanation}
         aiReasons={aiReasons}
+      />
+
+      {/* ── Report modal ────────────────────────────────────────────────── */}
+      <ReportModal
+        visible={isReportModalOpen}
+        url={currentUrl}
+        onClose={() => setReportModalOpen(false)}
+        onSuccess={handleReportSuccess}
       />
 
       {/* ── Toast ───────────────────────────────────────────────────────── */}
@@ -736,5 +864,19 @@ const styles = StyleSheet.create({
   webOnlyUrl: {
     fontSize: 13, fontFamily: "Inter_500Medium",
     color: Colors.textSecondary, flex: 1,
+  },
+
+  // Brand clone alert banner
+  brandCloneBanner: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: Colors.danger,
+    paddingHorizontal: 14, paddingVertical: 10,
+  },
+  brandCloneBannerText: {
+    flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold",
+    color: Colors.white,
+  },
+  brandCloneClose: {
+    padding: 4,
   },
 });

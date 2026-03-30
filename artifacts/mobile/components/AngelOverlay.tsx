@@ -507,7 +507,6 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: Colors.textSecondary,
     lineHeight: 22,
-    marginBottom: 24,
   },
   actionButtons: {
     flexDirection: "row",
@@ -558,5 +557,43 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
     color: Colors.danger,
+  },
+
+  explanationBox: {
+    gap: 10,
+    marginBottom: 20,
+  },
+  reasonsList: {
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  reasonsTitle: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textSecondary,
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  reasonItem: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "flex-start",
+  },
+  reasonBullet: {
+    fontSize: 14,
+    color: Colors.warning,
+    lineHeight: 20,
+  },
+  reasonText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 20,
   },
 });

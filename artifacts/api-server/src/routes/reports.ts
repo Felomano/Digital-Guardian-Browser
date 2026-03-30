@@ -7,7 +7,10 @@ const router = Router();
 
 // POST /api/report
 router.post("/report", async (req, res) => {
-  const { url, userId, risk_level, country, source, explanation, confidence } = req.body;
+  const {
+    url, userId, risk_level, country, source,
+    explanation, confidence, fraud_type, comment,
+  } = req.body;
 
   if (!url || !risk_level) {
     res.status(400).json({ error: "url and risk_level are required" });
@@ -15,9 +18,8 @@ router.post("/report", async (req, res) => {
   }
 
   try {
-    // Check if this URL was already reported by this user
     let existing = null;
-    if (userId) {
+    if (userId && userId !== "anonymous") {
       const found = await db
         .select()
         .from(reportsTable)
@@ -27,12 +29,13 @@ router.post("/report", async (req, res) => {
     }
 
     if (existing) {
-      // Update report count
       const [updated] = await db
         .update(reportsTable)
         .set({
           riskLevel: risk_level,
           country: country ?? existing.country,
+          fraudType: fraud_type ?? existing.fraudType,
+          comment: comment ?? existing.comment,
           reportCount: (existing.reportCount ?? 1) + 1,
         })
         .where(eq(reportsTable.id, existing.id))
@@ -49,6 +52,8 @@ router.post("/report", async (req, res) => {
           source: source ?? "angel-browser",
           explanation: explanation ?? null,
           confidence: confidence ?? null,
+          fraudType: fraud_type ?? null,
+          comment: comment ?? null,
         })
         .returning();
       res.json({ success: true, report });
@@ -62,17 +67,10 @@ router.post("/report", async (req, res) => {
 // GET /api/reports?country=ES&limit=50
 router.get("/reports", async (req, res) => {
   const country = req.query.country as string | undefined;
-  const limit = Math.min(parseInt(req.query.limit as string ?? "50"), 200);
+  const limit = Math.min(parseInt((req.query.limit as string) ?? "50"), 200);
 
   try {
-    let query = db
-      .select()
-      .from(reportsTable)
-      .orderBy(desc(reportsTable.createdAt))
-      .limit(limit);
-
     if (country) {
-      // Filter by country using SQL
       const results = await db
         .select()
         .from(reportsTable)
@@ -83,7 +81,12 @@ router.get("/reports", async (req, res) => {
       return;
     }
 
-    const results = await query;
+    const results = await db
+      .select()
+      .from(reportsTable)
+      .orderBy(desc(reportsTable.createdAt))
+      .limit(limit);
+
     res.json({ reports: results, count: results.length });
   } catch (err) {
     req.log.error({ err }, "Error fetching reports");
@@ -91,9 +94,9 @@ router.get("/reports", async (req, res) => {
   }
 });
 
-// GET /api/heroes — top reporters
+// GET /api/heroes — top reporters ranked by report count
 router.get("/heroes", async (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit as string ?? "10"), 50);
+  const limit = Math.min(parseInt((req.query.limit as string) ?? "20"), 50);
 
   try {
     const heroes = await db
@@ -108,12 +111,13 @@ router.get("/heroes", async (req, res) => {
       .limit(limit);
 
     const formatted = heroes.map((h, i) => ({
-      rank: i + 1,
+      id: h.userId ?? `hero-${i}`,
       name: h.userId ?? "Anónimo",
-      reports: h.reportCount,
+      reportCount: h.reportCount,
+      rank: i + 1,
     }));
 
-    res.json({ heroes: formatted });
+    res.json(formatted);
   } catch (err) {
     req.log.error({ err }, "Error fetching heroes");
     res.status(500).json({ error: "Failed to fetch heroes" });

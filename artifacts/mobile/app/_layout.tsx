@@ -27,7 +27,6 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
-    // Load icon font for web platform
     ...Feather.font,
   });
 
@@ -38,7 +37,6 @@ export default function RootLayout() {
   }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) return null;
-  // Always render the app even if fonts fail to load
 
   return (
     <SafeAreaProvider>
@@ -61,6 +59,10 @@ export default function RootLayout() {
               />
               <Stack.Screen
                 name="community"
+                options={{ animation: "slide_from_right" }}
+              />
+              <Stack.Screen
+                name="heroes"
                 options={{ animation: "slide_from_right" }}
               />
             </Stack>

@@ -40,6 +40,9 @@ export const reportsTable = pgTable("reports", {
   explanation: text("explanation"),
   confidence: real("confidence"),
   reportCount: integer("report_count").default(1),
+  fraudType: varchar("fraud_type", { length: 30 }),
+  comment: text("comment"),
+  reportedAt: timestamp("reported_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -47,6 +50,7 @@ export const insertReportSchema = createInsertSchema(reportsTable).omit({
   id: true,
   createdAt: true,
   reportCount: true,
+  reportedAt: true,
 });
 export type InsertReport = z.infer<typeof insertReportSchema>;
 export type Report = typeof reportsTable.$inferSelect;

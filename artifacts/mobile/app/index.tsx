@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,7 @@ import {
   Pressable,
   Animated,
   Dimensions,
-  ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -16,38 +16,61 @@ import { Feather } from "@expo/vector-icons";
 
 import Colors from "@/constants/colors";
 import { AngelLogo } from "@/components/AngelLogo";
+import { getSession, saveSession } from "@/constants/session";
 
-const { width, height } = Dimensions.get("window");
+const { width } = Dimensions.get("window");
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const logoAnim = useRef(new Animated.Value(1)).current;
-  const textAnim = useRef(new Animated.Value(1)).current;
-  const buttonsAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0.5)).current;
+  const [checking, setChecking] = useState(true);
 
+  // ── Check existing session on mount ───────────────────────────────────────
   useEffect(() => {
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0.5,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    (async () => {
+      try {
+        const session = await getSession();
+        if (session?.loggedIn) {
+          // Already logged in — go straight to browser
+          router.replace("/browser");
+          return;
+        }
+      } catch {}
+      setChecking(false);
+    })();
   }, []);
 
-  const handleContinue = (method: "google" | "email") => {
+  // ── Glow animation ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (checking) return;
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 1, duration: 2200, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0.4, duration: 2200, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [checking]);
+
+  const handleContinue = async (method: "google" | "email") => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.replace("/home");
+    await saveSession({ loggedIn: true, method, name: method === "google" ? "Usuario Google" : "Usuario" });
+    // Skip home — go directly to browser
+    router.replace("/browser");
   };
+
+  // Show a minimal loader while checking session
+  if (checking) {
+    return (
+      <LinearGradient
+        colors={[Colors.primary, "#0D0520"]}
+        style={styles.loadingScreen}
+      >
+        <AngelLogo size={72} />
+        <ActivityIndicator color={Colors.accent} style={{ marginTop: 24 }} />
+      </LinearGradient>
+    );
+  }
 
   return (
     <LinearGradient
@@ -60,72 +83,26 @@ export default function LoginScreen() {
       <View style={[styles.orb, styles.orb1]} />
       <View style={[styles.orb, styles.orb2]} />
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: insets.top + 40 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 32 }]}>
         {/* Logo */}
-        <Animated.View
-          style={[
-            styles.logoSection,
-            {
-              opacity: logoAnim,
-              transform: [
-                {
-                  translateY: logoAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [40, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
+        <View style={styles.logoSection}>
           <Animated.View style={[styles.glowRing, { opacity: glowAnim }]} />
           <View style={styles.iconContainer}>
-            <AngelLogo size={100} />
+            <AngelLogo size={110} />
           </View>
-        </Animated.View>
+        </View>
 
         {/* Text */}
-        <Animated.View
-          style={[
-            styles.textSection,
-            {
-              opacity: textAnim,
-              transform: [
-                {
-                  translateY: textAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [20, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
+        <View style={styles.textSection}>
           <Text style={styles.appName}>Ángel Browser</Text>
           <Text style={styles.tagline}>Tu ángel guardián digital</Text>
           <Text style={styles.description}>
             Navega con inteligencia. Protegido en cada paso.
           </Text>
-        </Animated.View>
+        </View>
 
-        {/* Features */}
-        <Animated.View
-          style={[
-            styles.featuresRow,
-            {
-              opacity: textAnim,
-            },
-          ]}
-        >
+        {/* Feature pills */}
+        <View style={styles.featuresRow}>
           {[
             { icon: "shield", label: "Análisis en tiempo real" },
             { icon: "users", label: "Red comunitaria" },
@@ -133,224 +110,105 @@ export default function LoginScreen() {
           ].map((feat) => (
             <View key={feat.icon} style={styles.featureItem}>
               <View style={styles.featureIconBg}>
-                <Feather
-                  name={feat.icon as any}
-                  size={16}
-                  color={Colors.accent}
-                />
+                <Feather name={feat.icon as any} size={16} color={Colors.accent} />
               </View>
               <Text style={styles.featureLabel}>{feat.label}</Text>
             </View>
           ))}
-        </Animated.View>
-      </View>
+        </View>
 
-      {/* Buttons */}
-      <Animated.View
-        style={[
-          styles.buttonsSection,
-          {
-            paddingBottom: insets.bottom + 32,
-            opacity: buttonsAnim,
-            transform: [
-              {
-                translateY: buttonsAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <Pressable
-          style={({ pressed }) => [
-            styles.primaryBtn,
-            pressed && styles.btnPressed,
-          ]}
-          onPress={() => handleContinue("google")}
-        >
-          <Feather name="mail" size={20} color={Colors.primary} />
-          <Text style={styles.primaryBtnText}>Continuar con Google</Text>
-        </Pressable>
+        {/* Buttons */}
+        <View style={styles.buttonsSection}>
+          <Pressable
+            style={({ pressed }) => [styles.googleBtn, pressed && { opacity: 0.88 }]}
+            onPress={() => handleContinue("google")}
+          >
+            <Feather name="mail" size={20} color={Colors.primary} />
+            <Text style={styles.googleBtnText}>Continuar con Google</Text>
+          </Pressable>
 
-        <Pressable
-          style={({ pressed }) => [
-            styles.secondaryBtn,
-            pressed && styles.secondaryBtnPressed,
-          ]}
-          onPress={() => handleContinue("email")}
-        >
-          <Feather name="at-sign" size={20} color="#FFFFFF" />
-          <Text style={styles.secondaryBtnText}>Continuar con Email</Text>
-        </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.emailBtn, pressed && { opacity: 0.85 }]}
+            onPress={() => handleContinue("email")}
+          >
+            <Feather name="at-sign" size={20} color={Colors.white} />
+            <Text style={styles.emailBtnText}>Continuar con Email</Text>
+          </Pressable>
+        </View>
 
-        <Text style={styles.legal}>
-          Al continuar aceptas los Términos de Servicio y Política de Privacidad
+        <Text style={styles.terms}>
+          Al continuar aceptas los Términos de Servicio y{"\n"}Política de Privacidad
         </Text>
-      </Animated.View>
-      </ScrollView>
+      </View>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  loadingScreen: {
+    flex: 1, alignItems: "center", justifyContent: "center",
   },
-  scrollContent: {
-    paddingHorizontal: 28,
-    paddingBottom: 40,
-  },
+  container: { flex: 1 },
+  orb: { position: "absolute", borderRadius: 999, opacity: 0.15 },
+  orb1: { width: 320, height: 320, backgroundColor: Colors.accent, top: -60, right: -80 },
+  orb2: { width: 250, height: 250, backgroundColor: "#4A1080", bottom: 40, left: -60 },
+
   content: {
-    alignItems: "center",
-    marginBottom: 24,
+    flex: 1, alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 28, gap: 28,
   },
-  orb: {
-    position: "absolute",
-    borderRadius: 999,
-    opacity: 0.15,
-  },
-  orb1: {
-    width: 300,
-    height: 300,
-    backgroundColor: Colors.accent,
-    top: -80,
-    right: -80,
-  },
-  orb2: {
-    width: 200,
-    height: 200,
-    backgroundColor: "#4A1080",
-    bottom: 100,
-    left: -60,
-  },
-  logoSection: {
-    alignItems: "center",
-    marginBottom: 36,
-  },
+
+  logoSection: { alignItems: "center", justifyContent: "center" },
   glowRing: {
-    position: "absolute",
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: Colors.accent,
-    opacity: 0.15,
-    top: -30,
+    position: "absolute", width: 160, height: 160, borderRadius: 80,
+    backgroundColor: Colors.accent, opacity: 0.2,
   },
   iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 32,
-    backgroundColor: "rgba(123, 47, 190, 0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-  },
-  textSection: {
-    alignItems: "center",
-    marginBottom: 36,
-  },
-  appName: {
-    fontSize: 34,
-    fontFamily: "Inter_700Bold",
-    color: Colors.white,
-    letterSpacing: -0.5,
-    marginBottom: 8,
-  },
-  tagline: {
-    fontSize: 18,
-    fontFamily: "Inter_500Medium",
-    color: "rgba(200,168,255,0.9)",
-    marginBottom: 12,
-  },
-  description: {
-    fontSize: 15,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  featuresRow: {
-    flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 8,
-  },
-  featureItem: {
-    flex: 1,
-    alignItems: "center",
-    gap: 8,
+    width: 120, height: 120, borderRadius: 28,
     backgroundColor: Colors.cardBg,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    padding: 14,
+    borderWidth: 1, borderColor: Colors.cardBorder,
+    alignItems: "center", justifyContent: "center",
+    overflow: "hidden",
+    shadowColor: Colors.accent, shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5, shadowRadius: 20, elevation: 12,
   },
+
+  textSection: { alignItems: "center", gap: 8 },
+  appName: { fontSize: 30, fontFamily: "Inter_700Bold", color: Colors.white, textAlign: "center" },
+  tagline: { fontSize: 16, fontFamily: "Inter_500Medium", color: Colors.accent, textAlign: "center" },
+  description: {
+    fontSize: 14, fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary, textAlign: "center", lineHeight: 22,
+  },
+
+  featuresRow: { flexDirection: "row", gap: 12 },
+  featureItem: { flex: 1, alignItems: "center", gap: 8 },
   featureIconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(123, 47, 190, 0.3)",
-    alignItems: "center",
-    justifyContent: "center",
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: Colors.cardBg, borderWidth: 1, borderColor: Colors.cardBorder,
+    alignItems: "center", justifyContent: "center",
   },
   featureLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 14,
+    fontSize: 11, fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary, textAlign: "center",
   },
-  buttonsSection: {
-    paddingHorizontal: 24,
-    gap: 12,
+
+  buttonsSection: { width: "100%", gap: 12 },
+  googleBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 12, backgroundColor: Colors.white,
+    borderRadius: 16, paddingVertical: 16, paddingHorizontal: 24,
   },
-  primaryBtn: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
+  googleBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.primary },
+  emailBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 12, backgroundColor: Colors.accent,
+    borderRadius: 16, paddingVertical: 16, paddingHorizontal: 24,
   },
-  primaryBtnText: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.primary,
-  },
-  btnPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
-  },
-  secondaryBtn: {
-    backgroundColor: Colors.cardBg,
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  secondaryBtnText: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.white,
-  },
-  secondaryBtnPressed: {
-    opacity: 0.8,
-  },
-  legal: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textMuted,
-    textAlign: "center",
-    lineHeight: 16,
-    marginTop: 8,
+  emailBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.white },
+
+  terms: {
+    fontSize: 11, fontFamily: "Inter_400Regular",
+    color: Colors.textMuted, textAlign: "center", lineHeight: 18,
   },
 });
