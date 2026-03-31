@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { reportsTable } from "@workspace/db";
+import { reportsTable, usersTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
 
 const router = Router();
@@ -72,8 +72,21 @@ router.get("/reports", async (req, res) => {
   try {
     if (country) {
       const results = await db
-        .select()
+        .select({
+          id: reportsTable.id,
+          url: reportsTable.url,
+          riskLevel: reportsTable.riskLevel,
+          fraudType: reportsTable.fraudType,
+          comment: reportsTable.comment,
+          userId: reportsTable.userId,
+          country: reportsTable.country,
+          reportedAt: reportsTable.reportedAt,
+          confidence: reportsTable.confidence,
+          userName: usersTable.name,
+          userAvatar: usersTable.avatar,
+        })
         .from(reportsTable)
+        .leftJoin(usersTable, eq(reportsTable.userId, usersTable.id))
         .where(eq(reportsTable.country, country.toUpperCase()))
         .orderBy(desc(reportsTable.createdAt))
         .limit(limit);
@@ -82,8 +95,21 @@ router.get("/reports", async (req, res) => {
     }
 
     const results = await db
-      .select()
+      .select({
+        id: reportsTable.id,
+        url: reportsTable.url,
+        riskLevel: reportsTable.riskLevel,
+        fraudType: reportsTable.fraudType,
+        comment: reportsTable.comment,
+        userId: reportsTable.userId,
+        country: reportsTable.country,
+        reportedAt: reportsTable.reportedAt,
+        confidence: reportsTable.confidence,
+        userName: usersTable.name,
+        userAvatar: usersTable.avatar,
+      })
       .from(reportsTable)
+      .leftJoin(usersTable, eq(reportsTable.userId, usersTable.id))
       .orderBy(desc(reportsTable.createdAt))
       .limit(limit);
 

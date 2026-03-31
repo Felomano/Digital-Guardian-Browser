@@ -99,4 +99,33 @@ router.put("/user/profile", async (req, res) => {
   }
 });
 
+// PUT /api/user/avatar/:userId - Update user avatar
+router.put("/user/avatar/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const { avatar } = req.body;
+
+  if (!avatar) {
+    res.status(400).json({ error: "avatar is required" });
+    return;
+  }
+
+  try {
+    const [updated] = await db
+      .update(usersTable)
+      .set({ avatar })
+      .where(eq(usersTable.id, userId))
+      .returning();
+
+    if (!updated) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    res.json(updated);
+  } catch (err) {
+    req.log.error({ err }, "Error updating avatar");
+    res.status(500).json({ error: "Failed to update avatar" });
+  }
+});
+
 export default router;

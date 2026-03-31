@@ -8,6 +8,8 @@ import {
   ScrollView,
   Alert,
   TextInput,
+  Image,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -19,6 +21,7 @@ import { AngelLogo } from "@/components/AngelLogo";
 import { getSession, clearSession, saveSession } from "@/constants/session";
 import { loadSettings, saveSettings } from "@/constants/settings";
 import { API_BASE_URL } from "@/constants/api";
+import * as ImagePicker from "expo-image-picker";
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -28,6 +31,8 @@ export default function ProfileScreen() {
   const [userPhone, setUserPhone] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [userAvatar, setUserAvatar] = useState<string>("");
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -37,6 +42,7 @@ export default function ProfileScreen() {
         setSessionMethod(session.method);
         setSessionId(session.id ?? "");
         setUserPhone(session.phone ?? "");
+        setUserAvatar(session.avatar ?? "");
       }
       const settings = await loadSettings();
       setHideHaloOnGreen(settings.hideHaloOnGreen);
@@ -74,6 +80,58 @@ export default function ProfileScreen() {
       }
     } catch (e) {
       Alert.alert("Error", "No se pudo guardar el número");
+    }
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.cancelled && result.assets?.[0]) {
+        setIsUploadingAvatar(true);
+        const asset = result.assets[0];
+        
+        // Create form data for upload
+        const formData = new FormData();
+        formData.append("file", {
+          uri: asset.uri,
+          type: asset.type || "image/jpeg",
+          name: `avatar_${sessionId}.jpg`,
+        } as any);
+
+        // Upload to API
+        const res = await fetch(`${API_BASE_URL}/user/avatar/${sessionId}`, {
+          method: "PUT",
+          body: formData,
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const avatarUrl = data.avatar || asset.uri;
+          setUserAvatar(avatarUrl);
+
+          // Save to session
+          const session = await getSession();
+          if (session) {
+            await saveSession({
+              ...session,
+              avatar: avatarUrl,
+            });
+          }
+          Alert.alert("Éxito", "Foto de perfil actualizada");
+        }
+      }
+    } catch (e) {
+      console.error("Error picking image:", e);
+      Alert.alert("Error", "No se pudo cambiar la foto de perfil");
+    } finally {
+      setIsUploadingAvatar(false);
     }
   };
 
@@ -116,9 +174,19 @@ export default function ProfileScreen() {
       >
         {/* Avatar card */}
         <View style={styles.avatarCard}>
-          <View style={styles.avatarBg}>
-            <AngelLogo size={72} />
-          </View>
+          <Pressable style={styles.avatarPress} onPress={handlePickImage} disabled={isUploadingAvatar}>
+            <View style={styles.avatarBg}>
+              {userAvatar ? (
+                <Image source={{ uri: userAvatar }} style={styles.avatarImage} />
+              ) : (
+                <AngelLogo size={72} />
+              )}
+            </View>
+            {isUploadingAvatar && (
+              <ActivityIndicator size="large" color={Colors.accent} style={styles.uploadingIndicator} />
+            )}
+            <Feather name="camera" size={20} color={Colors.accent} style={styles.cameraIcon} />
+          </Pressable>
           <View style={{ alignItems: "center", gap: 4 }}>
             <Text style={styles.userName}>{sessionName}</Text>
             <View style={styles.methodBadge}>
@@ -285,6 +353,11 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.cardBorder,
     marginBottom: 4,
   },
+  avatarPress: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   avatarBg: {
     width: 100, height: 100, borderRadius: 26,
     backgroundColor: Colors.primary,
@@ -293,6 +366,20 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     shadowColor: Colors.accent, shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4, shadowRadius: 14, elevation: 10,
+  },
+  avatarImage: {
+    width: 100, height: 100, borderRadius: 26,
+  },
+  uploadingIndicator: {
+    position: "absolute",
+  },
+  cameraIcon: {
+    position: "absolute",
+    bottom: -8,
+    right: -8,
+    backgroundColor: Colors.accent + "dd",
+    borderRadius: 20,
+    padding: 6,
   },
   userName: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.white },
   methodBadge: {

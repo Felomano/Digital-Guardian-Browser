@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Linking,
+  Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -35,6 +36,8 @@ type FeedReport = {
   country?: string;
   reportedAt?: string;
   confidence?: number;
+  userName?: string;
+  userAvatar?: string;
 };
 
 const MEDAL_COLORS = ["#FFD700", "#C0C0C0", "#CD7F32"];
@@ -175,16 +178,24 @@ export default function HeroesScreen() {
             </View>
           </View>
 
-          {/* Fraud type */}
-          {item.fraudType && (
-            <View style={styles.fraudTypeRow}>
-              <Feather name={fraudIcon} size={13} color={Colors.textSecondary} />
-              <Text style={styles.fraudTypeText}>{fraudLabel}</Text>
-              {item.userId && (
-                <Text style={styles.reporterText}>· por {item.userId}</Text>
-              )}
-            </View>
-          )}
+          {/* Fraud type + Reporter */}
+          <View style={styles.fraudTypeRow}>
+            {item.fraudType && (
+              <>
+                <Feather name={fraudIcon} size={13} color={Colors.textSecondary} />
+                <Text style={styles.fraudTypeText}>{fraudLabel}</Text>
+              </>
+            )}
+            {item.userName && (
+              <View style={styles.reporterRow}>
+                <Text style={styles.reporterSeparator}>·</Text>
+                {item.userAvatar && (
+                  <Image source={{ uri: item.userAvatar }} style={styles.reporterAvatar} />
+                )}
+                <Text style={styles.reporterName}>{item.userName}</Text>
+              </View>
+            )}
+          </View>
 
           {/* Comment */}
           {item.comment ? (
@@ -423,8 +434,12 @@ const styles = StyleSheet.create({
   },
   riskPillText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 
-  fraudTypeRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  fraudTypeRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   fraudTypeText: { fontSize: 12, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
+  reporterRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  reporterSeparator: { fontSize: 12, color: Colors.textSecondary },
+  reporterAvatar: { width: 16, height: 16, borderRadius: 8 },
+  reporterName: { fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.accent },
   reporterText: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textMuted },
 
   commentBox: {

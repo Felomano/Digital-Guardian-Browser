@@ -36,6 +36,7 @@ import { ReportModal } from "@/components/ReportModal";
 import { SECURITY_ENDPOINT } from "@/constants/api";
 import { loadSettings } from "@/constants/settings";
 import { getSession } from "@/constants/session";
+import { getTabs, saveTabs, addTab, updateTab, removeTab, type BrowserTab } from "@/constants/tabs-storage";
 
 const SECURITY_API = SECURITY_ENDPOINT;
 const DEFAULT_URL = "https://www.google.com";
@@ -225,15 +226,33 @@ export default function BrowserScreen() {
   const [hideHaloOnGreen, setHideHaloOnGreen] = useState(false);
   const [userName, setUserName] = useState("Usuario");
   const [guardianPhone, setGuardianPhone] = useState("");
+  const [tabs, setTabs] = useState<BrowserTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string>("");
+  const [showTabBar, setShowTabBar] = useState(false);
 
   const webViewRef = useRef<any>(null);
   const alertShownFor = useRef<string>("");
   const checkAbort = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    checkSecurity(initialUrl);
-    // Load session data including guardianPhone
     (async () => {
+      // Load tabs from storage
+      const storedTabs = await getTabs();
+      if (storedTabs.length > 0) {
+        setTabs(storedTabs);
+        setActiveTabId(storedTabs[0].id);
+        setCurrentUrl(storedTabs[0].url);
+        setInputUrl(storedTabs[0].url);
+        setWebViewUrl(storedTabs[0].url);
+        checkSecurity(storedTabs[0].url);
+      } else {
+        checkSecurity(initialUrl);
+        const firstTab = await addTab(initialUrl);
+        setTabs([firstTab]);
+        setActiveTabId(firstTab.id);
+      }
+
+      // Load session data including guardianPhone
       const session = await getSession();
       if (session?.name) setUserName(session.name);
       if (session?.phone) setGuardianPhone(session.phone);
@@ -297,6 +316,10 @@ export default function BrowserScreen() {
 
       if (finalRisk !== "loading") {
         setRiskLevel(finalRisk);
+        // Update active tab risk level
+        if (activeTabId) {
+          await updateTab(activeTabId, { riskLevel: finalRisk });
+        }
         await saveRecentSite(url, finalRisk);
 
         if (
@@ -356,6 +379,11 @@ export default function BrowserScreen() {
     // Always update URL display
     setCurrentUrl(newUrl);
     if (!isInputFocused) setInputUrl(newUrl);
+
+    // Update current tab URL
+    if (activeTabId) {
+      updateTab(activeTabId, { url: newUrl });
+    }
 
     // Trigger security check if it's a new URL
     if (newUrl !== currentUrl) {
@@ -445,6 +473,53 @@ export default function BrowserScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* ── Tab Bar ─────────────────────────────────────────────────────── */}
+      {tabs.length > 0 && (
+        <View style={[styles.tabBar, { paddingTop: insets.top }]}>
+          <View style={styles.tabsScroll}>
+            {tabs.map((tab) => (
+              <Pressable
+                key={tab.id}
+                style={[
+                  styles.tab,
+                  activeTabId === tab.id && styles.tabActive,
+                ]}
+                onPress={() => {
+                  setActiveTabId(tab.id);
+                  setCurrentUrl(tab.url);
+                  setInputUrl(tab.url);
+                  setWebViewUrl(tab.url);
+                  checkSecurity(tab.url);
+                }}
+              >
+                <Text style={[styles.tabTitle, activeTabId === tab.id && styles.tabTitleActive]}>
+                  {tab.title.substring(0, 15)}
+                </Text>
+                {tabs.length > 1 && (
+                  <Pressable
+                    style={styles.tabClose}
+                    onPress={async () => {
+                      const newTabs = tabs.filter((t) => t.id !== tab.id);
+                      await removeTab(tab.id);
+                      setTabs(newTabs);
+                      if (activeTabId === tab.id && newTabs.length > 0) {
+                        const nextTab = newTabs[0];
+                        setActiveTabId(nextTab.id);
+                        setCurrentUrl(nextTab.url);
+                        setInputUrl(nextTab.url);
+                        setWebViewUrl(nextTab.url);
+                      }
+                    }}
+                  >
+                    <Feather name="x" size={12} color={Colors.white} />
+                  </Pressable>
+                )}
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      )}
+
       {/* ── Navigation Bar ─────────────────────────────────────────────── */}
       <View style={[styles.navBar, { backgroundColor: navBarBg, borderBottomColor: navBarBorder }]}>
         <Pressable
@@ -500,10 +575,13 @@ export default function BrowserScreen() {
 
         <Pressable
           style={({ pressed }) => [styles.navBtn, pressed && { opacity: 0.6 }]}
-          onPress={() => {
-            setInputUrl("");
-            setCurrentUrl("");
-            setInputFocused(true);
+          onPress={async () => {
+            const newTab = await addTab(DEFAULT_URL);
+            setTabs([...tabs, newTab]);
+            setActiveTabId(newTab.id);
+            setCurrentUrl(newTab.url);
+            setInputUrl(newTab.url);
+            setWebViewUrl(newTab.url);
           }}
         >
           <Feather name="plus" size={22} color={Colors.white} />
@@ -715,6 +793,45 @@ export default function BrowserScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.primary },
+
+  tabBar: {
+    backgroundColor: Colors.primaryLight,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
+  },
+  tabsScroll: {
+    flexDirection: "row",
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+    gap: 4,
+  },
+  tab: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: Colors.cardBg,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    maxWidth: 120,
+  },
+  tabActive: {
+    backgroundColor: Colors.accent + "22",
+    borderColor: Colors.accent,
+  },
+  tabTitle: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
+  },
+  tabTitleActive: {
+    color: Colors.white,
+  },
+  tabClose: {
+    padding: 2,
+  },
 
   navBar: {
     flexDirection: "row",
