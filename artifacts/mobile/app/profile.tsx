@@ -7,6 +7,7 @@ import {
   Pressable,
   ScrollView,
   Alert,
+  TextInput,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -17,12 +18,16 @@ import Colors from "@/constants/colors";
 import { AngelLogo } from "@/components/AngelLogo";
 import { getSession, clearSession } from "@/constants/session";
 import { loadSettings, saveSettings } from "@/constants/settings";
+import { API_BASE_URL } from "@/constants/api";
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [hideHaloOnGreen, setHideHaloOnGreen] = useState(false);
   const [sessionName, setSessionName] = useState("Usuario");
   const [sessionMethod, setSessionMethod] = useState<string>("email");
+  const [userPhone, setUserPhone] = useState("");
+  const [sessionId, setSessionId] = useState("");
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -30,6 +35,8 @@ export default function ProfileScreen() {
       if (session) {
         setSessionName(session.name ?? "Usuario");
         setSessionMethod(session.method);
+        setSessionId(session.id ?? "");
+        setUserPhone(session.phone ?? "");
       }
       const settings = await loadSettings();
       setHideHaloOnGreen(settings.hideHaloOnGreen);
@@ -40,6 +47,26 @@ export default function ProfileScreen() {
     Haptics.selectionAsync();
     setHideHaloOnGreen(value);
     await saveSettings({ hideHaloOnGreen: value });
+  };
+
+  const handleSavePhone = async () => {
+    if (!userPhone.trim()) {
+      Alert.alert("Error", "Por favor, ingresa un número válido");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE_URL}/user/phone/${sessionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: userPhone }),
+      });
+      if (res.ok) {
+        setIsEditingPhone(false);
+        Alert.alert("Éxito", "Número telefónico guardado correctamente");
+      }
+    } catch (e) {
+      Alert.alert("Error", "No se pudo guardar el número");
+    }
   };
 
   const handleLogout = () => {
@@ -113,6 +140,57 @@ export default function ProfileScreen() {
             </View>
           ))}
         </View>
+
+        {/* ── Información Personal ──────────────────────────────────────────── */}
+        <Text style={styles.sectionTitle}>Información Personal</Text>
+
+        <View style={styles.settingsCard}>
+          <View style={styles.settingRow}>
+            <View style={styles.settingIconBg}>
+              <Feather name="smartphone" size={18} color={Colors.accent} />
+            </View>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Número Telefónico</Text>
+              {!isEditingPhone ? (
+                <Text style={styles.settingValue}>{userPhone || "No configurado"}</Text>
+              ) : (
+                <TextInput
+                  style={styles.phoneInput}
+                  placeholder="+34 600 000 000"
+                  placeholderTextColor={Colors.textMuted}
+                  value={userPhone}
+                  onChangeText={setUserPhone}
+                  keyboardType="phone-pad"
+                />
+              )}
+            </View>
+            <Pressable
+              style={({ pressed }) => [styles.editPhoneBtn, pressed && { opacity: 0.6 }]}
+              onPress={() => {
+                if (isEditingPhone) {
+                  handleSavePhone();
+                } else {
+                  setIsEditingPhone(true);
+                }
+              }}
+            >
+              <Feather
+                name={isEditingPhone ? "check" : "edit-2"}
+                size={18}
+                color={Colors.accent}
+              />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Guardian Button */}
+        <Pressable
+          style={({ pressed }) => [styles.guardianBtn, pressed && { opacity: 0.8 }]}
+          onPress={() => router.push("/guardian")}
+        >
+          <Feather name="shield" size={20} color={Colors.white} />
+          <Text style={styles.guardianBtnText}>Protección Familiar (Guardian)</Text>
+        </Pressable>
 
         {/* ── Preferencias de Seguridad ────────────────────────────────────── */}
         <Text style={styles.sectionTitle}>Preferencias de seguridad</Text>
@@ -272,4 +350,21 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.danger + "44",
   },
   logoutText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.danger },
+  
+  phoneInput: {
+    fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.white,
+    paddingVertical: 6, paddingHorizontal: 8,
+    backgroundColor: Colors.primary + "55", borderRadius: 8,
+    borderWidth: 1, borderColor: Colors.accent + "33",
+  },
+  settingValue: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 2 },
+  editPhoneBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  
+  guardianBtn: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: Colors.accent + "22", borderWidth: 1, borderColor: Colors.accent + "44",
+    paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16,
+    marginTop: 4,
+  },
+  guardianBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.white },
 });

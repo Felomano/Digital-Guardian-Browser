@@ -35,6 +35,7 @@ import { ToastMessage } from "@/components/ToastMessage";
 import { ReportModal } from "@/components/ReportModal";
 import { SECURITY_ENDPOINT } from "@/constants/api";
 import { loadSettings } from "@/constants/settings";
+import { getSession } from "@/constants/session";
 
 const SECURITY_API = SECURITY_ENDPOINT;
 const DEFAULT_URL = "https://www.google.com";
@@ -222,6 +223,8 @@ export default function BrowserScreen() {
   const [isReportModalOpen, setReportModalOpen] = useState(false);
   const [brandCloneAlert, setBrandCloneAlert] = useState<string | null>(null);
   const [hideHaloOnGreen, setHideHaloOnGreen] = useState(false);
+  const [userName, setUserName] = useState("Usuario");
+  const [guardianPhone, setGuardianPhone] = useState("");
 
   const webViewRef = useRef<any>(null);
   const alertShownFor = useRef<string>("");
@@ -229,12 +232,23 @@ export default function BrowserScreen() {
 
   useEffect(() => {
     checkSecurity(initialUrl);
+    // Load session data including guardianPhone
+    (async () => {
+      const session = await getSession();
+      if (session?.name) setUserName(session.name);
+      if (session?.phone) setGuardianPhone(session.phone);
+    })();
   }, []);
 
   // Reload user settings when screen comes into focus (e.g., after visiting profile)
   useFocusEffect(
     useCallback(() => {
       loadSettings().then((s) => setHideHaloOnGreen(s.hideHaloOnGreen));
+      // Also reload user phone in case it was updated in profile
+      (async () => {
+        const session = await getSession();
+        if (session?.phone) setGuardianPhone(session.phone);
+      })();
     }, [])
   );
 
@@ -681,6 +695,8 @@ export default function BrowserScreen() {
         aiExplanation={aiExplanation}
         aiReasons={aiReasons}
         hideWhenSafe={hideHaloOnGreen}
+        userName={userName}
+        guardianPhone={guardianPhone}
       />
 
       {/* ── Report modal ────────────────────────────────────────────────── */}

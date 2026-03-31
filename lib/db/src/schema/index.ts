@@ -54,3 +54,21 @@ export const insertReportSchema = createInsertSchema(reportsTable).omit({
 });
 export type InsertReport = z.infer<typeof insertReportSchema>;
 export type Report = typeof reportsTable.$inferSelect;
+
+// ── Guardian Protection Relationships ──────────────────────────────────────
+export const guardianRelationshipsTable = pgTable("guardian_relationships", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  guardianId: uuid("guardian_id").notNull(),
+  protectedUserId: uuid("protected_user_id").notNull(),
+  protectedUserEmail: text("protected_user_email"),
+  protectedUserPhone: varchar("protected_user_phone", { length: 30 }),
+  isActive: integer("is_active").default(1).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertGuardianRelationshipSchema = createInsertSchema(guardianRelationshipsTable).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertGuardianRelationship = z.infer<typeof insertGuardianRelationshipSchema>;
+export type GuardianRelationship = typeof guardianRelationshipsTable.$inferSelect;

@@ -7,6 +7,7 @@ import {
   Animated,
   Modal,
   Dimensions,
+  Linking,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -15,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { AngelLogo } from "@/components/AngelLogo";
+import { API_BASE_URL } from "@/constants/api";
 
 type RiskLevel = "safe" | "warning" | "danger" | "loading" | "unknown";
 
@@ -30,6 +32,8 @@ type AngelOverlayProps = {
   aiExplanation?: string | null;
   aiReasons?: string[];
   hideWhenSafe?: boolean;
+  userName?: string;
+  guardianPhone?: string;
 };
 
 const RISK_CONFIG = {
@@ -76,6 +80,8 @@ export function AngelOverlay({
   aiExplanation,
   aiReasons = [],
   hideWhenSafe = false,
+  userName = "Usuario",
+  guardianPhone = "",
 }: AngelOverlayProps) {
   const insets = useSafeAreaInsets();
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -85,10 +91,42 @@ export function AngelOverlay({
 
   const config = RISK_CONFIG[riskLevel];
 
+  // Send WhatsApp alert to guardian
+  const sendGuardianAlert = async () => {
+    if (!guardianPhone) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/guardian/alert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          protectedUserName: userName,
+          dangerousUrl: currentUrl,
+          riskLevel,
+          guardianPhone,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Open WhatsApp with the alert message
+        Linking.openURL(data.whatsappLink).catch(() => {
+          console.log("WhatsApp not installed");
+        });
+      }
+    } catch (e) {
+      console.error("Error sending guardian alert:", e);
+    }
+  };
+
   useEffect(() => {
     if (riskLevel === "danger") {
       // Vibration + shake
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      // Send WhatsApp alert to guardian
+      if (guardianPhone) {
+        sendGuardianAlert();
+      }
       Animated.loop(
         Animated.sequence([
           Animated.timing(shakeAnim, {
