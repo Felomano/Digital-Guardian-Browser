@@ -106,7 +106,16 @@ function isHighEntropyDomain(url: string): boolean {
 const BRAND_CLONE_JS = `
 (function() {
   var BRANDS = ${JSON.stringify(Object.entries(KNOWN_BRANDS).map(([brand, domains]) => ({ brand, domains })))};
+  var SEARCH_ENGINES = ['google.com', 'bing.com', 'duckduckgo.com', 'yahoo.com', 'baidu.com'];
   var currentHost = window.location.hostname.toLowerCase();
+  
+  // Don't trigger brand-clone alert on trusted search engines
+  for (var se = 0; se < SEARCH_ENGINES.length; se++) {
+    if (currentHost === SEARCH_ENGINES[se] || currentHost.endsWith('.' + SEARCH_ENGINES[se])) {
+      return;
+    }
+  }
+  
   var bodyText = (document.body && document.body.innerText) ? document.body.innerText.toLowerCase() : '';
   var title = document.title ? document.title.toLowerCase() : '';
   var combined = bodyText + ' ' + title;
@@ -619,51 +628,51 @@ export default function BrowserScreen() {
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
         {/* Atrás */}
         <Pressable
-          style={({ pressed }) => [styles.navBtn, pressed && styles.navBtnPressed, !canGoBack && styles.navBtnDisabled]}
+          style={({ pressed }) => [styles.bottomNavBtn, pressed && styles.bottomNavBtnPressed, !canGoBack && styles.bottomNavBtnDisabled]}
           onPress={() => webViewRef.current?.goBack()}
           disabled={!canGoBack}
         >
           <Feather name="chevron-left" size={22} color={canGoBack ? Colors.white : Colors.textMuted} />
-          <Text style={[styles.navLabel, !canGoBack && styles.navLabelDisabled]}>Atrás</Text>
+          <Text style={[styles.bottomNavLabel, !canGoBack && styles.bottomNavLabelDisabled]}>Atrás</Text>
         </Pressable>
 
         {/* Adelante */}
         <Pressable
-          style={({ pressed }) => [styles.navBtn, pressed && styles.navBtnPressed, !canGoForward && styles.navBtnDisabled]}
+          style={({ pressed }) => [styles.bottomNavBtn, pressed && styles.bottomNavBtnPressed, !canGoForward && styles.bottomNavBtnDisabled]}
           onPress={() => webViewRef.current?.goForward()}
           disabled={!canGoForward}
         >
           <Feather name="chevron-right" size={22} color={canGoForward ? Colors.white : Colors.textMuted} />
-          <Text style={[styles.navLabel, !canGoForward && styles.navLabelDisabled]}>Adelante</Text>
+          <Text style={[styles.bottomNavLabel, !canGoForward && styles.bottomNavLabelDisabled]}>Adelante</Text>
         </Pressable>
 
         {/* Reportar */}
         <Pressable
-          style={({ pressed }) => [styles.navBtn, styles.navBtnReport, pressed && styles.navBtnPressed]}
+          style={({ pressed }) => [styles.bottomNavBtn, styles.bottomNavBtnReport, pressed && styles.bottomNavBtnPressed]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setReportModalOpen(true); }}
         >
           <View style={styles.reportIconBg}>
-            <Feather name="flag" size={18} color={Colors.danger} />
+            <Feather name="flag" size={18} color={Colors.white} />
           </View>
-          <Text style={[styles.navLabel, { color: Colors.danger }]}>Reportar</Text>
+          <Text style={[styles.bottomNavLabel, { color: Colors.white }]}>Reportar</Text>
         </Pressable>
 
         {/* Comunidad */}
         <Pressable
-          style={({ pressed }) => [styles.navBtn, pressed && styles.navBtnPressed]}
+          style={({ pressed }) => [styles.bottomNavBtn, pressed && styles.bottomNavBtnPressed]}
           onPress={() => router.push("/heroes")}
         >
           <Feather name="users" size={20} color={Colors.white} />
-          <Text style={styles.navLabel}>Comunidad</Text>
+          <Text style={styles.bottomNavLabel}>Comunidad</Text>
         </Pressable>
 
         {/* Perfil */}
         <Pressable
-          style={({ pressed }) => [styles.navBtn, pressed && styles.navBtnPressed]}
+          style={({ pressed }) => [styles.bottomNavBtn, pressed && styles.bottomNavBtnPressed]}
           onPress={() => router.push("/profile")}
         >
           <Feather name="user" size={20} color={Colors.white} />
-          <Text style={styles.navLabel}>Perfil</Text>
+          <Text style={styles.bottomNavLabel}>Perfil</Text>
         </Pressable>
       </View>
 
@@ -840,7 +849,7 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(255,255,255,0.14)",
     minHeight: 62,
   },
-  navBtn: {
+  bottomNavBtn: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -850,28 +859,28 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     minHeight: 52,
   },
-  navBtnPressed: {
+  bottomNavBtnPressed: {
     backgroundColor: "rgba(255,255,255,0.08)",
   },
-  navBtnDisabled: {
+  bottomNavBtnDisabled: {
     opacity: 0.35,
   },
-  navBtnReport: {
+  bottomNavBtnReport: {
     // no extra styles needed
   },
   reportIconBg: {
     width: 32, height: 32, borderRadius: 10,
-    backgroundColor: Colors.danger + "22",
-    borderWidth: 1, borderColor: Colors.danger + "44",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.2)",
     alignItems: "center", justifyContent: "center",
   },
-  navLabel: {
+  bottomNavLabel: {
     fontSize: 10,
     fontFamily: "Inter_500Medium",
     color: Colors.white,
     textAlign: "center",
   },
-  navLabelDisabled: {
+  bottomNavLabelDisabled: {
     color: Colors.textMuted,
   },
 
