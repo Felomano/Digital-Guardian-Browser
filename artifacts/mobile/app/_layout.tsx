@@ -5,6 +5,7 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
+import * as Font from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -27,8 +28,22 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
-    ...Feather.font,
   });
+
+  useEffect(() => {
+    // Load Feather icon font explicitly for mobile
+    async function loadIconFont() {
+      try {
+        await Font.loadAsync({
+          ...Feather.font,
+        });
+      } catch (e) {
+        console.warn("Failed to load icon font:", e);
+      }
+    }
+
+    loadIconFont();
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
