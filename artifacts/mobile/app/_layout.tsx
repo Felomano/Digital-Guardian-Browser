@@ -29,6 +29,7 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+  const [featherFontLoaded, setFeatherFontLoaded] = React.useState(false);
 
   useEffect(() => {
     // Load Feather icon font explicitly for mobile
@@ -37,8 +38,10 @@ export default function RootLayout() {
         await Font.loadAsync({
           ...Feather.font,
         });
+        setFeatherFontLoaded(true);
       } catch (e) {
         console.warn("Failed to load icon font:", e);
+        setFeatherFontLoaded(true); // Continue anyway
       }
     }
 
@@ -46,12 +49,14 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    // Wait for both text fonts AND icon font to load
+    if ((fontsLoaded || fontError) && featherFontLoaded) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, fontError]);
+  }, [fontsLoaded, fontError, featherFontLoaded]);
 
-  if (!fontsLoaded && !fontError) return null;
+  // Don't show content until all fonts (text + icons) are loaded
+  if ((!fontsLoaded && !fontError) || !featherFontLoaded) return null;
 
   return (
     <SafeAreaProvider>
