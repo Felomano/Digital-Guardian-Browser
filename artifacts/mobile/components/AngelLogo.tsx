@@ -7,8 +7,6 @@ interface AngelLogoProps {
   rounded?: boolean;
 }
 
-const logoImage = require("../assets/icon.png");
-
 export function AngelLogo({ size = 80, style, rounded = true }: AngelLogoProps) {
   return (
     <View
@@ -19,9 +17,10 @@ export function AngelLogo({ size = 80, style, rounded = true }: AngelLogoProps) 
       ]}
     >
       <Image
-        source={logoImage}
-        style={{ width: size, height: size }}
-        resizeMode="cover"
+        source={require("../assets/icon.png")}
+        style={{ width: size, height: size, flex: 1 }}
+        resizeMode="contain"
+        defaultSource={require("../assets/icon.png")}
       />
     </View>
   );
