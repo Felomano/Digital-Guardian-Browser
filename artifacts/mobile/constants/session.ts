@@ -6,7 +6,9 @@ export type Session = {
   loggedIn: boolean;
   method: "google" | "email";
   userId?: string;
+  id?: string;
   name?: string;
+  phone?: string;
   timestamp: string;
 };
 

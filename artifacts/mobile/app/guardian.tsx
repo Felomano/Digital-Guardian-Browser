@@ -19,14 +19,14 @@ import { Feather } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { getSession } from "@/constants/session";
 import { API_BASE_URL } from "@/constants/api";
+import {
+  getProtectedCircle,
+  addProtectedPerson,
+  updateProtectedPerson,
+  removeProtectedPerson,
+  type ProtectedPerson,
+} from "@/constants/guardian-storage";
 
-type ProtectedPerson = {
-  id: string;
-  protectedUserEmail: string | null;
-  protectedUserPhone: string | null;
-  isActive: number;
-  createdAt: string;
-};
 
 export default function GuardianScreen() {
   const insets = useSafeAreaInsets();
@@ -43,6 +43,11 @@ export default function GuardianScreen() {
       const session = await getSession();
       if (session?.id) {
         setSessionId(session.id);
+        // Load from local storage first
+        const local = await getProtectedCircle();
+        setProtectedCircle(local);
+        setGuardianEnabled(local.length > 0);
+        // Then sync with API
         await fetchProtectedCircle(session.id);
       }
     })();
@@ -54,13 +59,35 @@ export default function GuardianScreen() {
       const res = await fetch(`${API_BASE_URL}/guardian/circle/${guardianId}`);
       if (res.ok) {
         const data = await res.json();
-        setProtectedCircle(data);
-        setGuardianEnabled(data.length > 0);
+        // Transform API response and save to local storage
+        const transformed: ProtectedPerson[] = data.map((item: any) => ({
+          id: item.id,
+          email: item.protectedUserEmail,
+          phone: item.protectedUserPhone,
+          isActive: item.isActive === 1,
+        }));
+        setProtectedCircle(transformed);
+        setGuardianEnabled(transformed.length > 0);
+        // Persist to local storage
+        await saveProtectedCircle(transformed);
       }
     } catch (e) {
       console.error("Error fetching protected circle:", e);
+      // If API fails, use local storage
+      const local = await getProtectedCircle();
+      setProtectedCircle(local);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const saveProtectedCircle = async (circle: ProtectedPerson[]) => {
+    try {
+      await Promise.all(circle.map((p) =>
+        updateProtectedPerson(p.id, { isActive: p.isActive, email: p.email, phone: p.phone })
+      ));
+    } catch (e) {
+      console.error("Error saving to local storage:", e);
     }
   };
 
@@ -72,6 +99,7 @@ export default function GuardianScreen() {
 
     try {
       setIsSavingContact(true);
+      // Save to API
       const res = await fetch(`${API_BASE_URL}/guardian/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -83,6 +111,20 @@ export default function GuardianScreen() {
       });
 
       if (res.ok) {
+        const apiData = await res.json();
+        // Also save locally
+        const newPerson: ProtectedPerson = {
+          id: apiData.id || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          email: newContactEmail || undefined,
+          phone: newContactPhone || undefined,
+          isActive: true,
+        };
+        await addProtectedPerson({
+          email: newPerson.email,
+          phone: newPerson.phone,
+          isActive: newPerson.isActive,
+        });
+
         setNewContactEmail("");
         setNewContactPhone("");
         await fetchProtectedCircle(sessionId);
@@ -95,18 +137,21 @@ export default function GuardianScreen() {
     }
   };
 
-  const handleToggleProtection = async (relationshipId: string, currentStatus: number) => {
+  const handleToggleProtection = async (relationshipId: string, currentStatus: boolean) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/guardian/toggle/${relationshipId}`, {
+      const newStatus = !currentStatus;
+      // Update API
+      await fetch(`${API_BASE_URL}/guardian/toggle/${relationshipId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: currentStatus === 0 ? 1 : 0 }),
+        body: JSON.stringify({ isActive: newStatus ? 1 : 0 }),
       });
 
-      if (res.ok) {
-        await fetchProtectedCircle(sessionId);
-        Haptics.selectionAsync();
-      }
+      // Update local storage
+      await updateProtectedPerson(relationshipId, { isActive: newStatus });
+      
+      await fetchProtectedCircle(sessionId);
+      Haptics.selectionAsync();
     } catch (e) {
       Alert.alert("Error", "No se pudo cambiar el estado");
     }
@@ -120,9 +165,12 @@ export default function GuardianScreen() {
         style: "destructive",
         onPress: async () => {
           try {
+            // Remove from API
             await fetch(`${API_BASE_URL}/guardian/remove/${relationshipId}`, {
               method: "DELETE",
             });
+            // Remove from local storage
+            await removeProtectedPerson(relationshipId);
             await fetchProtectedCircle(sessionId);
           } catch (e) {
             Alert.alert("Error", "No se pudo eliminar el contacto");
@@ -240,7 +288,7 @@ export default function GuardianScreen() {
                       />
                       <View style={{ flex: 1, gap: 2 }}>
                         <Text style={styles.personName}>
-                          {person.protectedUserEmail || person.protectedUserPhone || "Sin contacto"}
+                          {person.email || person.phone || "Sin contacto"}
                         </Text>
                         <Text style={[styles.personStatus, { color: person.isActive ? Colors.safe : Colors.textMuted }]}>
                           {person.isActive ? "🟢 Activo" : "🔴 Inactivo"}

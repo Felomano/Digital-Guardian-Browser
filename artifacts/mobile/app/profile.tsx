@@ -16,7 +16,7 @@ import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { AngelLogo } from "@/components/AngelLogo";
-import { getSession, clearSession } from "@/constants/session";
+import { getSession, clearSession, saveSession } from "@/constants/session";
 import { loadSettings, saveSettings } from "@/constants/settings";
 import { API_BASE_URL } from "@/constants/api";
 
@@ -61,6 +61,14 @@ export default function ProfileScreen() {
         body: JSON.stringify({ phone: userPhone }),
       });
       if (res.ok) {
+        // Save phone to AsyncStorage session as well
+        const session = await getSession();
+        if (session) {
+          await saveSession({
+            ...session,
+            phone: userPhone,
+          });
+        }
         setIsEditingPhone(false);
         Alert.alert("Éxito", "Número telefónico guardado correctamente");
       }
