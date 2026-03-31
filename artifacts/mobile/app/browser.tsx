@@ -486,9 +486,13 @@ export default function BrowserScreen() {
 
         <Pressable
           style={({ pressed }) => [styles.navBtn, pressed && { opacity: 0.6 }]}
-          onPress={handleOpenExternal}
+          onPress={() => {
+            setInputUrl("");
+            setCurrentUrl("");
+            setInputFocused(true);
+          }}
         >
-          <Feather name="external-link" size={18} color={Colors.textSecondary} />
+          <Feather name="plus" size={22} color={Colors.white} />
         </Pressable>
       </View>
 
@@ -644,17 +648,6 @@ export default function BrowserScreen() {
         >
           <Feather name="chevron-right" size={22} color={canGoForward ? Colors.white : Colors.textMuted} />
           <Text style={[styles.bottomNavLabel, !canGoForward && styles.bottomNavLabelDisabled]}>Adelante</Text>
-        </Pressable>
-
-        {/* Reportar */}
-        <Pressable
-          style={({ pressed }) => [styles.bottomNavBtn, styles.bottomNavBtnReport, pressed && styles.bottomNavBtnPressed]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setReportModalOpen(true); }}
-        >
-          <View style={styles.reportIconBg}>
-            <Feather name="flag" size={18} color={Colors.white} />
-          </View>
-          <Text style={[styles.bottomNavLabel, { color: Colors.white }]}>Reportar</Text>
         </Pressable>
 
         {/* Comunidad */}
