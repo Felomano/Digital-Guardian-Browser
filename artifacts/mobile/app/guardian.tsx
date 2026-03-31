@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -34,6 +35,7 @@ export default function GuardianScreen() {
   const [sessionId, setSessionId] = useState("");
   const [protectedCircle, setProtectedCircle] = useState<ProtectedPerson[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [newContactName, setNewContactName] = useState("");
   const [newContactEmail, setNewContactEmail] = useState("");
   const [newContactPhone, setNewContactPhone] = useState("");
   const [isSavingContact, setIsSavingContact] = useState(false);
@@ -46,12 +48,32 @@ export default function GuardianScreen() {
         // Load from local storage first
         const local = await getProtectedCircle();
         setProtectedCircle(local);
-        setGuardianEnabled(local.length > 0);
+        
+        // Load guardian enabled state from AsyncStorage
+        try {
+          const savedState = await AsyncStorage.getItem("angel_guardian_enabled");
+          const enabled = savedState !== null ? JSON.parse(savedState) : local.length > 0;
+          setGuardianEnabled(enabled);
+        } catch {
+          const enabled = local.length > 0;
+          setGuardianEnabled(enabled);
+        }
+        
         // Then sync with API
         await fetchProtectedCircle(session.id);
       }
     })();
   }, []);
+
+  const toggleGuardian = async (enabled: boolean) => {
+    setGuardianEnabled(enabled);
+    // Save to AsyncStorage
+    try {
+      await AsyncStorage.setItem("angel_guardian_enabled", JSON.stringify(enabled));
+    } catch (e) {
+      console.error("Error saving guardian state:", e);
+    }
+  };
 
   const fetchProtectedCircle = async (guardianId: string) => {
     try {
@@ -115,19 +137,27 @@ export default function GuardianScreen() {
         // Also save locally
         const newPerson: ProtectedPerson = {
           id: apiData.id || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          name: newContactName || undefined,
           email: newContactEmail || undefined,
           phone: newContactPhone || undefined,
           isActive: true,
         };
         await addProtectedPerson({
+          name: newPerson.name,
           email: newPerson.email,
           phone: newPerson.phone,
           isActive: newPerson.isActive,
         });
 
+        setNewContactName("");
         setNewContactEmail("");
         setNewContactPhone("");
-        await fetchProtectedCircle(sessionId);
+        
+        // Manually add to state to show immediately
+        setProtectedCircle([...protectedCircle, newPerson]);
+        setGuardianEnabled(true);
+        await AsyncStorage.setItem("angel_guardian_enabled", JSON.stringify(true));
+        
         Alert.alert("Éxito", "Persona agregada al círculo protegido");
       }
     } catch (e) {
@@ -209,10 +239,7 @@ export default function GuardianScreen() {
             </View>
             <Switch
               value={guardianEnabled}
-              onValueChange={(value) => {
-                setGuardianEnabled(value);
-                Haptics.selectionAsync();
-              }}
+              onValueChange={toggleGuardian}
               trackColor={{ false: Colors.cardBorder, true: Colors.accent + "55" }}
               thumbColor={guardianEnabled ? Colors.accent : Colors.textMuted}
             />
@@ -224,7 +251,16 @@ export default function GuardianScreen() {
             {/* Add Protected Person */}
             <Text style={styles.sectionTitle}>Agregar Persona a Proteger</Text>
             <View style={styles.card}>
-              <Text style={styles.fieldLabel}>Correo Electrónico</Text>
+              <Text style={styles.fieldLabel}>Nombre</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="ej: María García"
+                placeholderTextColor={Colors.textMuted}
+                value={newContactName}
+                onChangeText={setNewContactName}
+              />
+
+              <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Correo Electrónico</Text>
               <TextInput
                 style={styles.input}
                 placeholder="email@example.com"
@@ -288,8 +324,13 @@ export default function GuardianScreen() {
                       />
                       <View style={{ flex: 1, gap: 2 }}>
                         <Text style={styles.personName}>
-                          {person.email || person.phone || "Sin contacto"}
+                          {person.name || person.email || person.phone || "Sin contacto"}
                         </Text>
+                        {(person.email || person.phone) && (
+                          <Text style={styles.personContact}>
+                            {person.email || person.phone}
+                          </Text>
+                        )}
                         <Text style={[styles.personStatus, { color: person.isActive ? Colors.safe : Colors.textMuted }]}>
                           {person.isActive ? "🟢 Activo" : "🔴 Inactivo"}
                         </Text>
@@ -429,6 +470,7 @@ const styles = StyleSheet.create({
   },
   personName: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.white },
   personStatus: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  personContact: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 2 },
   
   personActions: {
     flexDirection: "row",

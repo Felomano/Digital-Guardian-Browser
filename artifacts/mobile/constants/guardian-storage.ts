@@ -4,6 +4,7 @@ const PROTECTED_CIRCLE_KEY = "angel_protected_circle";
 
 export type ProtectedPerson = {
   id: string;
+  name?: string;
   email?: string;
   phone?: string;
   isActive: boolean;

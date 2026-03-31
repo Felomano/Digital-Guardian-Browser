@@ -90,30 +90,26 @@ export default function ProfileScreen() {
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
+        base64: true,
       });
 
       if (!result.cancelled && result.assets?.[0]) {
         setIsUploadingAvatar(true);
         const asset = result.assets[0];
         
-        // Create form data for upload
-        const formData = new FormData();
-        formData.append("file", {
-          uri: asset.uri,
-          type: asset.type || "image/jpeg",
-          name: `avatar_${sessionId}.jpg`,
-        } as any);
+        // Convert to base64 data URI
+        const base64Data = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
 
-        // Upload to API
+        // Upload to API with JSON
         const res = await fetch(`${API_BASE_URL}/user/avatar/${sessionId}`, {
           method: "PUT",
-          body: formData,
-          headers: { "Content-Type": "multipart/form-data" },
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ avatar: base64Data }),
         });
 
         if (res.ok) {
           const data = await res.json();
-          const avatarUrl = data.avatar || asset.uri;
+          const avatarUrl = data.avatar || base64Data;
           setUserAvatar(avatarUrl);
 
           // Save to session
@@ -125,6 +121,8 @@ export default function ProfileScreen() {
             });
           }
           Alert.alert("Éxito", "Foto de perfil actualizada");
+        } else {
+          Alert.alert("Error", "No se pudo guardar la foto");
         }
       }
     } catch (e) {
@@ -189,16 +187,6 @@ export default function ProfileScreen() {
           </Pressable>
           <View style={{ alignItems: "center", gap: 4 }}>
             <Text style={styles.userName}>{sessionName}</Text>
-            <View style={styles.methodBadge}>
-              <Feather
-                name={sessionMethod === "google" ? "mail" : "at-sign"}
-                size={12}
-                color={Colors.accent}
-              />
-              <Text style={styles.methodText}>
-                {sessionMethod === "google" ? "Google" : "Email"}
-              </Text>
-            </View>
           </View>
         </View>
 
