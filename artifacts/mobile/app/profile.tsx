@@ -179,13 +179,13 @@ export default function ProfileScreen() {
   >
     <View style={styles.avatarBg}>
       {userAvatar ? (
-        <Image 
-          source={{ uri: userAvatar }} 
+        <Image
+          source={{ uri: userAvatar }}
           style={styles.avatarImage}
-          resizeMode="cover" // ✅ CAMBIADO: usar "cover" para mejor ajuste
+          resizeMode="cover"
         />
       ) : (
-        <AngelLogo size={100} /> {/* ✅ Aumentado de 72 a 100 */}
+        <AngelLogo size={100} />
       )}
     </View>
     {isUploadingAvatar && (
