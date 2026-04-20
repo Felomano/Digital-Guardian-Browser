@@ -170,25 +170,39 @@ export default function ProfileScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Avatar card */}
-        <View style={styles.avatarCard}>
-          <Pressable style={styles.avatarPress} onPress={handlePickImage} disabled={isUploadingAvatar}>
-            <View style={styles.avatarBg}>
-              {userAvatar ? (
-                <Image source={{ uri: userAvatar }} style={styles.avatarImage} />
-              ) : (
-                <AngelLogo size={72} />
-              )}
-            </View>
-            {isUploadingAvatar && (
-              <ActivityIndicator size="large" color={Colors.accent} style={styles.uploadingIndicator} />
-            )}
-            <Feather name="camera" size={20} color={Colors.accent} style={styles.cameraIcon} />
-          </Pressable>
-          <View style={{ alignItems: "center", gap: 4 }}>
-            <Text style={styles.userName}>{sessionName}</Text>
-          </View>
-        </View>
+       {/* Avatar card */}
+<View style={styles.avatarCard}>
+  <Pressable 
+    style={styles.avatarPress} 
+    onPress={handlePickImage} 
+    disabled={isUploadingAvatar}
+  >
+    <View style={styles.avatarBg}>
+      {userAvatar ? (
+        <Image 
+          source={{ uri: userAvatar }} 
+          style={styles.avatarImage}
+          resizeMode="cover" // ✅ CAMBIADO: usar "cover" para mejor ajuste
+        />
+      ) : (
+        <AngelLogo size={100} /> {/* ✅ Aumentado de 72 a 100 */}
+      )}
+    </View>
+    {isUploadingAvatar && (
+      <ActivityIndicator 
+        size="large" 
+        color={Colors.accent} 
+        style={styles.uploadingIndicator} 
+      />
+    )}
+    <View style={styles.cameraIconContainer}>
+      <Feather name="camera" size={16} color={Colors.white} />
+    </View>
+  </Pressable>
+  <View style={{ alignItems: "center", gap: 4 }}>
+    <Text style={styles.userName}>{sessionName}</Text>
+  </View>
+</View>
 
         {/* Stats row */}
         <View style={styles.statsRow}>
