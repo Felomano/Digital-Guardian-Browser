@@ -40,6 +40,7 @@ export default function GuardianScreen() {
   const [newContactPhone, setNewContactPhone] = useState("");
   const [isSavingContact, setIsSavingContact] = useState(false);
 
+  // ✅ MEJORADO: Persistencia centralizada del modo guardian
   useEffect(() => {
     (async () => {
       const session = await getSession();
@@ -49,14 +50,14 @@ export default function GuardianScreen() {
         const local = await getProtectedCircle();
         setProtectedCircle(local);
         
-        // Load guardian enabled state from AsyncStorage
+        // ✅ Cargar siempre el valor guardado de forma centralizada
         try {
           const savedState = await AsyncStorage.getItem("angel_guardian_enabled");
-          const enabled = savedState !== null ? JSON.parse(savedState) : local.length > 0;
+          const enabled = savedState === "true"; // Verificación explícita
           setGuardianEnabled(enabled);
-        } catch {
-          const enabled = local.length > 0;
-          setGuardianEnabled(enabled);
+        } catch (e) {
+          console.error("Error loading guardian state:", e);
+          setGuardianEnabled(false);
         }
         
         // Then sync with API
@@ -65,13 +66,15 @@ export default function GuardianScreen() {
     })();
   }, []);
 
+  // ✅ MEJORADO: Toggle mejorado con persistencia segura
   const toggleGuardian = async (enabled: boolean) => {
     setGuardianEnabled(enabled);
-    // Save to AsyncStorage
     try {
-      await AsyncStorage.setItem("angel_guardian_enabled", JSON.stringify(enabled));
+      await AsyncStorage.setItem("angel_guardian_enabled", enabled ? "true" : "false");
+      Haptics.selectionAsync();
     } catch (e) {
       console.error("Error saving guardian state:", e);
+      Alert.alert("Error", "No se pudo guardar el estado");
     }
   };
 
@@ -81,21 +84,27 @@ export default function GuardianScreen() {
       const res = await fetch(`${API_BASE_URL}/guardian/circle/${guardianId}`);
       if (res.ok) {
         const data = await res.json();
-        // Transform API response and save to local storage
+        // Transform API response
         const transformed: ProtectedPerson[] = data.map((item: any) => ({
           id: item.id,
+          name: item.name, // ✅ Incluir nombre desde API
           email: item.protectedUserEmail,
           phone: item.protectedUserPhone,
           isActive: item.isActive === 1,
         }));
         setProtectedCircle(transformed);
-        setGuardianEnabled(transformed.length > 0);
+        
+        // ✅ Actualizar guardian state si hay personas protegidas
+        if (transformed.length > 0 && !guardianEnabled) {
+          setGuardianEnabled(true);
+          await AsyncStorage.setItem("angel_guardian_enabled", "true");
+        }
+        
         // Persist to local storage
         await saveProtectedCircle(transformed);
       }
     } catch (e) {
       console.error("Error fetching protected circle:", e);
-      // If API fails, use local storage
       const local = await getProtectedCircle();
       setProtectedCircle(local);
     } finally {
@@ -106,27 +115,39 @@ export default function GuardianScreen() {
   const saveProtectedCircle = async (circle: ProtectedPerson[]) => {
     try {
       await Promise.all(circle.map((p) =>
-        updateProtectedPerson(p.id, { isActive: p.isActive, email: p.email, phone: p.phone })
+        updateProtectedPerson(p.id, { 
+          name: p.name,
+          isActive: p.isActive, 
+          email: p.email, 
+          phone: p.phone 
+        })
       ));
     } catch (e) {
       console.error("Error saving to local storage:", e);
     }
   };
 
+  // ✅ MEJORADO: Agregar contacto con nombre y sincronización mejorada
   const handleAddContact = async () => {
     if (!newContactEmail.trim() && !newContactPhone.trim()) {
       Alert.alert("Error", "Ingresa un correo o número telefónico");
       return;
     }
 
+    if (!newContactName.trim()) {
+      Alert.alert("Error", "Por favor, ingresa el nombre del familiar");
+      return;
+    }
+
     try {
       setIsSavingContact(true);
-      // Save to API
+      // Save to API con NOMBRE incluido
       const res = await fetch(`${API_BASE_URL}/guardian/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           guardianId: sessionId,
+          name: newContactName, // ✅ AHORA SÍ enviamos el nombre
           protectedUserEmail: newContactEmail || null,
           protectedUserPhone: newContactPhone || null,
         }),
@@ -134,39 +155,44 @@ export default function GuardianScreen() {
 
       if (res.ok) {
         const apiData = await res.json();
-        // Also save locally
+        
+        // También save locally
         const newPerson: ProtectedPerson = {
           id: apiData.id || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          name: newContactName || undefined,
+          name: newContactName, // ✅ Guardar nombre localmente
           email: newContactEmail || undefined,
           phone: newContactPhone || undefined,
           isActive: true,
         };
-        await addProtectedPerson({
-          name: newPerson.name,
-          email: newPerson.email,
-          phone: newPerson.phone,
-          isActive: newPerson.isActive,
-        });
+        
+        await addProtectedPerson(newPerson);
 
+        // ✅ Limpiar formulario
         setNewContactName("");
         setNewContactEmail("");
         setNewContactPhone("");
         
-        // Manually add to state to show immediately
+        // ✅ Actualizar listado inmediatamente
         setProtectedCircle([...protectedCircle, newPerson]);
-        setGuardianEnabled(true);
-        await AsyncStorage.setItem("angel_guardian_enabled", JSON.stringify(true));
         
-        Alert.alert("Éxito", "Persona agregada al círculo protegido");
+        // ✅ Activar guardian automáticamente
+        setGuardianEnabled(true);
+        await AsyncStorage.setItem("angel_guardian_enabled", "true");
+        
+        Alert.alert("Éxito", `${newContactName} agregado al círculo protegido`);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Alert.alert("Error", "No se pudo agregar el contacto");
       }
     } catch (e) {
-      Alert.alert("Error", "No se pudo agregar el contacto");
+      console.error("Error adding contact:", e);
+      Alert.alert("Error", "Error al agregar el contacto");
     } finally {
       setIsSavingContact(false);
     }
   };
 
+  // ✅ MEJORADO: Toggle protección con feedback visual
   const handleToggleProtection = async (relationshipId: string, currentStatus: boolean) => {
     try {
       const newStatus = !currentStatus;
@@ -183,31 +209,51 @@ export default function GuardianScreen() {
       await fetchProtectedCircle(sessionId);
       Haptics.selectionAsync();
     } catch (e) {
+      console.error("Error toggling protection:", e);
       Alert.alert("Error", "No se pudo cambiar el estado");
     }
   };
 
-  const handleRemoveContact = (relationshipId: string) => {
-    Alert.alert("Eliminar", "¿Eliminar de la protección?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            // Remove from API
-            await fetch(`${API_BASE_URL}/guardian/remove/${relationshipId}`, {
-              method: "DELETE",
-            });
-            // Remove from local storage
-            await removeProtectedPerson(relationshipId);
-            await fetchProtectedCircle(sessionId);
-          } catch (e) {
-            Alert.alert("Error", "No se pudo eliminar el contacto");
-          }
+  // ✅ MEJORADO: Eliminar contacto con verificación
+  const handleRemoveContact = (relationshipId: string, personName: string) => {
+    Alert.alert(
+      "Eliminar",
+      `¿Eliminar a ${personName} de la protección?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Remove from API
+              await fetch(`${API_BASE_URL}/guardian/remove/${relationshipId}`, {
+                method: "DELETE",
+              });
+              
+              // Remove from local storage
+              await removeProtectedPerson(relationshipId);
+              
+              // Actualizar estado
+              const newCircle = protectedCircle.filter(p => p.id !== relationshipId);
+              setProtectedCircle(newCircle);
+              
+              // ✅ Si no quedan familiares, desactivar guardian
+              if (newCircle.length === 0) {
+                setGuardianEnabled(false);
+                await AsyncStorage.setItem("angel_guardian_enabled", "false");
+                Alert.alert("Información", "No hay más personas protegidas. Modo guardian desactivado.");
+              }
+              
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch (e) {
+              console.error("Error removing contact:", e);
+              Alert.alert("Error", "No se pudo eliminar el contacto");
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   return (
@@ -251,7 +297,8 @@ export default function GuardianScreen() {
             {/* Add Protected Person */}
             <Text style={styles.sectionTitle}>Agregar Persona a Proteger</Text>
             <View style={styles.card}>
-              <Text style={styles.fieldLabel}>Nombre</Text>
+              {/* ✅ NOMBRE AHORA ES REQUERIDO */}
+              <Text style={styles.fieldLabel}>Nombre del Familiar *</Text>
               <TextInput
                 style={styles.input}
                 placeholder="ej: María García"
@@ -304,7 +351,7 @@ export default function GuardianScreen() {
             </View>
 
             {/* Protected Circle */}
-            <Text style={styles.sectionTitle}>Círculo Protegido</Text>
+            <Text style={styles.sectionTitle}>Círculo Protegido ({protectedCircle.length})</Text>
             {isLoading ? (
               <ActivityIndicator size="large" color={Colors.accent} style={{ marginVertical: 32 }} />
             ) : protectedCircle.length === 0 ? (
@@ -317,14 +364,17 @@ export default function GuardianScreen() {
                 {protectedCircle.map((person) => (
                   <View key={person.id} style={styles.personCard}>
                     <View style={styles.personInfo}>
-                      <Feather
-                        name="user"
-                        size={20}
-                        color={person.isActive ? Colors.safe : Colors.textMuted}
-                      />
+                      <View style={[
+                        styles.avatarCircle,
+                        { backgroundColor: person.isActive ? Colors.safe + "22" : Colors.textMuted + "22" }
+                      ]}>
+                        <Text style={styles.avatarInitial}>
+                          {(person.name || person.email || person.phone || "?")[0].toUpperCase()}
+                        </Text>
+                      </View>
                       <View style={{ flex: 1, gap: 2 }}>
                         <Text style={styles.personName}>
-                          {person.name || person.email || person.phone || "Sin contacto"}
+                          {person.name || person.email || person.phone || "Sin nombre"}
                         </Text>
                         {(person.email || person.phone) && (
                           <Text style={styles.personContact}>
@@ -349,7 +399,7 @@ export default function GuardianScreen() {
                       </Pressable>
                       <Pressable
                         style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.6 }]}
-                        onPress={() => handleRemoveContact(person.id)}
+                        onPress={() => handleRemoveContact(person.id, person.name || "Contacto")}
                       >
                         <Feather name="trash-2" size={18} color={Colors.danger} />
                       </Pressable>
@@ -382,21 +432,37 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
   },
   backBtn: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: Colors.cardBg,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderRadius: 10,
   },
-  headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.white },
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    color: Colors.white,
+  },
   
-  content: { paddingHorizontal: 20, gap: 16 },
-  
+  content: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 16,
+  },
+
+  sectionTitle: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: 8,
+  },
+
   card: {
     backgroundColor: Colors.cardBg,
     borderRadius: 16,
@@ -404,42 +470,63 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
+
   toggleRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    alignItems: "center",
+    gap: 16,
   },
-  cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.white },
-  cardDesc: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textMuted, marginTop: 4 },
-  
-  sectionTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.white, marginTop: 4 },
-  
-  fieldLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.white, marginBottom: 6 },
+
+  cardTitle: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.white,
+    marginBottom: 4,
+  },
+
+  cardDesc: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+  },
+
+  fieldLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
+    marginBottom: 6,
+  },
+
   input: {
-    backgroundColor: Colors.primary + "55",
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    backgroundColor: Colors.primary + "44",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     color: Colors.white,
-    fontSize: 13,
     fontFamily: "Inter_400Regular",
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    fontSize: 14,
   },
-  
+
   addBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
     backgroundColor: Colors.accent,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingVertical: 12,
-    marginTop: 12,
+    marginTop: 16,
   },
-  addBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.white },
-  
+
+  addBtnText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+    color: Colors.white,
+  },
+
   emptyCard: {
     alignItems: "center",
     justifyContent: "center",
@@ -448,9 +535,16 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
+    borderStyle: "dashed",
   },
-  emptyText: { fontSize: 14, fontFamily: "Inter_500Medium", color: Colors.textMuted, marginTop: 12 },
-  
+
+  emptyText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textMuted,
+    marginTop: 8,
+  },
+
   personCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -458,16 +552,34 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cardBg,
     borderRadius: 12,
     padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
     marginBottom: 8,
+  },
+
+  personInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+
+  avatarCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
-  personInfo: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+
+  avatarInitial: {
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
+    color: Colors.white,
   },
+
   personName: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.white },
   personStatus: { fontSize: 11, fontFamily: "Inter_400Regular" },
   personContact: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 2 },
@@ -476,6 +588,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
   },
+
   actionBtn: {
     width: 32,
     height: 32,
@@ -495,6 +608,13 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: Colors.accent + "33",
+    marginTop: 8,
   },
-  infoText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary, lineHeight: 16 },
+
+  infoText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    flex: 1,
+  },
 });
