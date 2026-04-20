@@ -4,7 +4,7 @@ const PROTECTED_CIRCLE_KEY = "angel_protected_circle";
 
 export type ProtectedPerson = {
   id: string;
-  name?: string;
+  name?: string; // ✅ Agregado: nombre del familiar
   email?: string;
   phone?: string;
   isActive: boolean;
@@ -15,7 +15,8 @@ export async function getProtectedCircle(): Promise<ProtectedPerson[]> {
     const raw = await AsyncStorage.getItem(PROTECTED_CIRCLE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as ProtectedPerson[];
-  } catch {
+  } catch (e) {
+    console.error("Error loading protected circle:", e);
     return [];
   }
 }
@@ -28,7 +29,9 @@ export async function saveProtectedCircle(circle: ProtectedPerson[]): Promise<vo
   }
 }
 
-export async function addProtectedPerson(person: Omit<ProtectedPerson, "id">): Promise<ProtectedPerson> {
+export async function addProtectedPerson(
+  person: Omit<ProtectedPerson, "id">
+): Promise<ProtectedPerson> {
   const circle = await getProtectedCircle();
   const newPerson: ProtectedPerson = {
     ...person,
@@ -39,7 +42,10 @@ export async function addProtectedPerson(person: Omit<ProtectedPerson, "id">): P
   return newPerson;
 }
 
-export async function updateProtectedPerson(id: string, updates: Partial<ProtectedPerson>): Promise<void> {
+export async function updateProtectedPerson(
+  id: string,
+  updates: Partial<ProtectedPerson>
+): Promise<void> {
   const circle = await getProtectedCircle();
   const index = circle.findIndex((p) => p.id === id);
   if (index >= 0) {
