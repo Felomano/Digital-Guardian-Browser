@@ -153,17 +153,28 @@ function localRiskCheck(url: string): RiskLevel {
     const path = parsed.pathname.toLowerCase();
     const fullLower = hostname + path;
 
+    let score = 0;
+    let critical = false;
+
     // Known dangerous domains
     for (const d of DANGER_DOMAINS) {
-      if (hostname.includes(d)) return "danger";
+      if (hostname.includes(d)) {
+        critical = true;
+        score += 100;
+        break;
+      }
     }
 
     // High-entropy random-looking domain (e.g. lqjkarav.shop)
-    if (isHighEntropyDomain(url)) return "danger";
+    if (isHighEntropyDomain(url)) score += 20;
 
     // Dangerous keywords in URL
     for (const kw of DANGER_KEYWORDS) {
-      if (fullLower.includes(kw)) return "danger";
+      const kwRegex = new RegExp(`(?:^|[^a-z0-9])${kw}(?:[^a-z0-9]|$)`, "i");
+      if (kwRegex.test(fullLower)) {
+        score += 30;
+        break;
+      }
     }
 
     // Plain HTTP (not HTTPS) — warning
@@ -176,18 +187,26 @@ function localRiskCheck(url: string): RiskLevel {
 
     // Warning patterns
     for (const p of WARNING_PATTERNS) {
-      if (p.test(lower)) return "warning";
+      if (p.test(lower)) {
+        score += 18;
+        break;
+      }
     }
 
     // Suspicious TLDs
     for (const tld of WARNING_TLDS) {
-      if (hostname.endsWith(tld)) return "warning";
+      if (hostname.endsWith(tld)) {
+        score += 15;
+        break;
+      }
     }
 
     // Many subdomains = suspicious
     const parts = hostname.split(".");
-    if (parts.length > 4) return "warning";
+    if (parts.length > 4) score += 10;
 
+    if (critical || score >= 65) return "danger";
+    if (score >= 20) return "warning";
     return "safe";
   } catch {
     return "unknown";

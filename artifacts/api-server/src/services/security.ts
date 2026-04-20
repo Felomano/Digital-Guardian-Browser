@@ -11,6 +11,17 @@ interface SecurityResult {
   reasons: string[];
 }
 
+function shannonEntropy(input: string): number {
+  const freq: Record<string, number> = {};
+  for (const ch of input) freq[ch] = (freq[ch] ?? 0) + 1;
+  const len = input.length;
+  if (!len) return 0;
+  return -Object.values(freq).reduce((acc, n) => {
+    const p = n / len;
+    return acc + p * Math.log2(p);
+  }, 0);
+}
+
 // ── Layer 1: Heuristic analysis ────────────────────────────────────────────
 
 const DANGER_KEYWORDS = [
@@ -66,15 +77,17 @@ function detectTyposquatting(hostname: string): string | null {
 function heuristicAnalysis(url: string): {
   score: number;
   reasons: string[];
+  critical: boolean;
 } {
   const reasons: string[] = [];
   let score = 0;
+  let critical = false;
 
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return { score: 0, reasons: ["URL inválida"] };
+    return { score: 0, reasons: ["URL inválida"], critical: false };
   }
 
   const hostname = parsed.hostname.toLowerCase();
@@ -84,7 +97,8 @@ function heuristicAnalysis(url: string): {
   // Known dangerous domains
   for (const domain of KNOWN_DANGER_DOMAINS) {
     if (hostname.includes(domain)) {
-      score += 80;
+      score += 95;
+      critical = true;
       reasons.push("dominio catalogado como peligroso");
       break;
     }
@@ -92,8 +106,9 @@ function heuristicAnalysis(url: string): {
 
   // Danger keywords
   for (const kw of DANGER_KEYWORDS) {
-    if (fullUrl.includes(kw)) {
-      score += 60;
+    const kwRegex = new RegExp(`(?:^|[^a-z0-9])${kw}(?:[^a-z0-9]|$)`, "i");
+    if (kwRegex.test(fullUrl)) {
+      score += 30;
       reasons.push(`contiene palabra clave sospechosa: "${kw}"`);
       break;
     }
@@ -102,7 +117,7 @@ function heuristicAnalysis(url: string): {
   // Typosquatting
   const typo = detectTyposquatting(hostname);
   if (typo) {
-    score += 55;
+    score += 35;
     reasons.push(`posible imitación de "${typo}" usando caracteres similares`);
   }
 
@@ -130,9 +145,20 @@ function heuristicAnalysis(url: string): {
   // Suspicious TLD
   for (const tld of SUSPICIOUS_TLDS) {
     if (hostname.endsWith(tld)) {
-      score += 30;
+      score += 18;
       reasons.push(`dominio de nivel superior sospechoso: "${tld}"`);
       break;
+    }
+  }
+
+  // High entropy on second-level domain + suspicious TLD
+  const sld = hostname.split(".").slice(-2, -1)[0] ?? "";
+  const hasSuspiciousTld = SUSPICIOUS_TLDS.some((tld) => hostname.endsWith(tld));
+  if (sld.length >= 8) {
+    const entropy = shannonEntropy(sld);
+    if (entropy > 3.45 && hasSuspiciousTld) {
+      score += 22;
+      reasons.push("dominio con alta entropía (apariencia aleatoria)");
     }
   }
 
@@ -154,7 +180,7 @@ function heuristicAnalysis(url: string): {
     reasons.push("URL anormalmente larga");
   }
 
-  return { score, reasons };
+  return { score, reasons, critical };
 }
 
 // ── Layer 2: DB reputation ─────────────────────────────────────────────────
@@ -231,7 +257,7 @@ function generateExplanation(
 // ── Main analysis function ─────────────────────────────────────────────────
 
 export async function analyzeUrl(url: string): Promise<SecurityResult> {
-  const { score: heuristicScore, reasons: heuristicReasons } =
+  const { score: heuristicScore, reasons: heuristicReasons, critical } =
     heuristicAnalysis(url);
 
   const { score: reputationScore, reasons: reputationReasons } =
@@ -241,9 +267,9 @@ export async function analyzeUrl(url: string): Promise<SecurityResult> {
   const totalScore = Math.min(heuristicScore + reputationScore, 100);
 
   let riskLevel: RiskLevel;
-  if (totalScore >= 50) {
+  if (critical || totalScore >= 70) {
     riskLevel = "danger";
-  } else if (totalScore >= 20) {
+  } else if (totalScore >= 30) {
     riskLevel = "warning";
   } else {
     riskLevel = "safe";
