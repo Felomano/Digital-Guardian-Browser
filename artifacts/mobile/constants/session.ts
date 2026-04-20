@@ -9,6 +9,7 @@ export type Session = {
   id?: string;
   name?: string;
   phone?: string;
+  avatar?: string; // ✅ AGREGADO
   timestamp: string;
 };
 
