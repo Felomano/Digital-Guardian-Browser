@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "angel",
+    "slug": "angel",
+    "version": "1.0.0",
+    "sdkVersion": "54.0.0",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "2.0.20"
+          }
+        }
+      ]
+    ],
+    "platforms": ["android", "ios"],
+    "android": {
+      "package": "com.replit.auraapp",
+      "gradleCommand": ":app:bundleRelease"
+    },
+    "ios": {
+      "bundleIdentifier": "com.replit.auraapp"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "13be982c-389b-43f8-bcf4-6ef3bc0e44c8"
+      }
+    }
+  }
+}
