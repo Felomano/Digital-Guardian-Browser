@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Ángel Browser",
-    "slug": "angel",
+    "slug": "mobile",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
     "plugins": [
